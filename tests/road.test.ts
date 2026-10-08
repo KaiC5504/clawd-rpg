@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { NO_STORY } from '../hooks/rpg/director'
 import type { Story, Trip } from '../hooks/rpg/director'
-import { DOZE_MS, PACK_MS, SLEEP_MS, camOf, goalOf, moveRoad, placeAt, placeWidth, restOf, spotsOf, stopsOf } from '../hooks/rpg/road'
+import { DOZE_MS, PACK_MS, SLEEP_MS, camOf, goalOf, moveRoad, placeAt, placeWidth, reanchor, restOf, spotsOf, stopsOf } from '../hooks/rpg/road'
 
 const T0 = 1_000_000
 const W = 179
@@ -47,11 +47,13 @@ describe('where he rests', () => {
     expect(camOf(1000, W)).toBe(1000)
   })
 
-  test("the current trip's spots cover the last trip's, and the forest is everywhere else", () => {
-    const story: Story = { ...NO_STORY, trail: trip({ leftAt: T0 + 1 }), trip: trip({ origin: 1100, at: T0 + 2000 }) }
-    expect(placeAt(story, 1000 + W, T0 + 3000, W)).toEqual({ kind: 'pier', from: 1000 + W })
-    expect(placeAt(story, 1100 + W, T0 + 3000, W)).toEqual({ kind: 'pier', from: 1100 + W })
-    expect(placeAt(story, 999, T0 + 3000, W)).toBeNull()
+  test("a last trip's spot that the current trip's spots overlap is gone; one clear of them stays", () => {
+    const overlapped: Story = { ...NO_STORY, trail: trip({ leftAt: T0 + 1 }), trip: trip({ origin: 1100, at: T0 + 2000 }) }
+    expect(placeAt(overlapped, 1000 + W, T0 + 3000, W)).toBeNull()
+    expect(placeAt(overlapped, 1100 + W, T0 + 3000, W)).toEqual({ kind: 'pier', from: 1100 + W })
+    expect(placeAt(overlapped, 999, T0 + 3000, W)).toBeNull()
+    const clear: Story = { ...overlapped, trip: trip({ origin: 1000 + 2 * W, at: T0 + 2000 }) }
+    expect(placeAt(clear, 1000 + W, T0 + 3000, W)).toEqual({ kind: 'pier', from: 1000 + W })
   })
 })
 
@@ -116,5 +118,28 @@ describe('pace', () => {
 
   test('idle with nowhere to go, he stays put', () => {
     expect(run(NO_STORY, 12, 40, false)).toBe(40)
+  })
+})
+
+describe('a resize while he rests', () => {
+  test('he stays on the spot he was at, whatever the change of width', () => {
+    for (const [at, kind] of [[T0, 'pier'], [T0 + DOZE_MS, 'camp'], [T0 + SLEEP_MS, 'inn']] as const)
+      for (const [from, to] of [[179, 120], [250, 179], [179, 250], [300, 100], [179, 80], [80, 179]]) {
+        const d = reanchor(resting(), at, goalOf(resting(), at, from)!.from, from, to)
+        expect(restOf(resting(), at, d, to)).toEqual({ kind, phase: 'rest', since: T0 })
+      }
+  })
+
+  test('packing up, he stays where he is packing', () => {
+    const called: Story = { ...working(), trip: trip({ leftAt: T0 + 500 }) }
+    expect(restOf(called, T0 + 600, reanchor(called, T0 + 600, 1000 + W, W, 120), 120)?.phase).toBe('pack')
+  })
+
+  test('on his way, a resize leaves him where he is', () => {
+    expect(reanchor(resting(), T0, 1050, W, 120)).toBe(1050)
+  })
+
+  test('past the spot he is heading for, he is put back on it rather than left in the forest', () => {
+    expect(moveRoad(resting(), T0 + SLEEP_MS, 1000 + 5 * W, W, 0, false, false).distance).toBe(1000 + 3 * W)
   })
 })

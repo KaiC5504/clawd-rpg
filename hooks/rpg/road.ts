@@ -64,14 +64,18 @@ export function goalOf(story: Story, now: number, width: number): Spot | null {
   return spotsOf(trip, now, width).at(-1) ?? null
 }
 
-// The rest spot at road column `wx`, if any; the current trip's spots cover the last trip's.
+// The rest spots on the road, the current trip's first. A last-trip spot that overlaps one of
+// them is dropped whole, so its props never show inside the place he's at.
+export function spotsOnRoad(story: Story, now: number, width: number): Spot[] {
+  const pw = placeWidth(width)
+  const mine = story.trip ? spotsOf(story.trip, now, width) : []
+  const old = story.trail ? spotsOf(story.trail, now, width) : []
+  return [...mine, ...old.filter(p => mine.every(q => p.from + pw <= q.from || q.from + pw <= p.from))]
+}
+
 export function placeAt(story: Story, wx: number, now: number, width: number): Spot | null {
   const pw = placeWidth(width)
-  for (const trip of [story.trip, story.trail]) {
-    if (!trip) continue
-    for (const spot of spotsOf(trip, now, width)) if (wx >= spot.from && wx < spot.from + pw) return spot
-  }
-  return null
+  return spotsOnRoad(story, now, width).find(p => wx >= p.from && wx < p.from + pw) ?? null
 }
 
 export type Rest = { kind: RestKind; phase: 'travel' | 'rest' | 'pack'; since: number }
@@ -90,6 +94,15 @@ export function restOf(story: Story, now: number, distance: number, width: numbe
   return { kind: goal.kind, phase: d === goal.from ? 'rest' : 'travel', since: trip.at }
 }
 
+// The band changed width under him. Spots stand a band apart, so they all move; if he was at one,
+// resting or packing, put him on the same spot at the new width instead of walking him there.
+export function reanchor(story: Story, now: number, distance: number, from: number, to: number): number {
+  const rest = from === to ? null : restOf(story, now, distance, from)
+  if (!rest || rest.phase === 'travel') return distance
+  const spot = spotsOf(story.trip!, story.trip!.leftAt ?? now, to).find(p => p.kind === rest.kind)
+  return spot?.from ?? distance
+}
+
 const isHurried = (story: Story, now: number) => {
   const recent = story.turn.recent ?? []
   return recent.length >= 3 && now - recent[recent.length - 3]! <= HURRY_WINDOW_MS
@@ -106,8 +119,8 @@ export function moveRoad(story: Story, now: number, distance: number, width: num
   if (restOf(story, now, distance, width)?.phase === 'pack') return still
   const goal = isWorking ? null : goalOf(story, now, width)
   if (!isWorking && !goal) return still
-  // A narrower band moves the spot back under him: he stays on it rather than wandering off.
-  if (goal && distance >= goal.from) return { ...still, distance: distance - goal.from < placeWidth(width) ? goal.from : distance }
+  // Past his goal (a resize the timer hasn't caught up with): back onto it, never stranded in the forest.
+  if (goal && distance >= goal.from) return { ...still, distance: goal.from }
   let rate = goal || isHurried(story, now) ? HURRY : WALK
   if (trudge) rate /= 2
   const step = Math.floor(((frame + 1) * rate) / 4) - Math.floor((frame * rate) / 4)

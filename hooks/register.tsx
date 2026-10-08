@@ -8,7 +8,7 @@ import { HIDDEN_BELOW, frame } from './rpg/frame'
 import { ROWS } from './rpg/grid'
 import { FRESH, gain, loadProgress } from './rpg/progress'
 import type { Award, Progress } from './rpg/progress'
-import { moveRoad } from './rpg/road'
+import { moveRoad, reanchor } from './rpg/road'
 import type { Motion } from './rpg/road'
 import { statsFrom } from './rpg/stats'
 import type { Usage } from './rpg/stats'
@@ -27,7 +27,7 @@ const story = atom({ plugin: 'clawd-rpg', key: 'story' } as const, NO_STORY)
 let isReady = false
 let place = ''
 let progress: Progress = FRESH
-let road = { distance: 0, isWorking: false, frames: 0 }
+let road = { distance: 0, isWorking: false, frames: 0, width: 0 }
 let painting: { requestId: string; width: number; painted: string } | null = null
 let frameTimer: { cancel: () => void } | null = null
 // A frame still on its way to the terminal: the next tick skips rather than piling blits up.
@@ -132,16 +132,21 @@ async function observeNow($: EngineInterface, event: string, payload: HookPayloa
 
 // He walks while Claude works and nothing stands in his way, and between turns heads for a rest spot.
 // `advance`: this is a frame of the timer, so the road moves; a redraw only looks.
+// The motion's `distance` is where to draw him.
 async function motionNow($: EngineInterface, width: number, now: number, advance: boolean): Promise<Motion> {
   const frames = advance ? ++road.frames : road.frames
-  const motion = moveRoad(await storyNow($), now, road.distance, width, frames, road.isWorking, (await read($, stats)).mp <= 0)
-  if (advance) road.distance = motion.distance
+  const story = await storyNow($)
+  const distance = road.width ? reanchor(story, now, road.distance, road.width, width) : road.distance
+  const motion = moveRoad(story, now, distance, width, frames, road.isWorking, (await read($, stats)).mp <= 0)
+  if (!advance) return { ...motion, distance }
+  road.distance = motion.distance
+  road.width = width
   return motion
 }
 
 async function cellsNow($: EngineInterface, width: number, now: number, motion: Motion): Promise<string> {
   const s = await read($, stats)
-  return encodeCells(frame({ width, t: now, distance: road.distance, isWalking: motion.isWalking, stats: s, story: await storyNow($), trudge: s.mp <= 0, legMs: motion.legMs }))
+  return encodeCells(frame({ width, t: now, distance: motion.distance, isWalking: motion.isWalking, stats: s, story: await storyNow($), trudge: s.mp <= 0, legMs: motion.legMs }))
 }
 
 async function paintFrame($: EngineInterface): Promise<void> {

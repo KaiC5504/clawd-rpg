@@ -545,3 +545,22 @@ test('the task list shows as a quest line while he works', async ($, on) => {
   await clock.advance(160)
   await t.unmount()
 })
+
+test('resizing while he sleeps at the inn keeps him in bed, narrower or wider', async ($, on) => {
+  on('classic.PreCompact', () => ({}))
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits })
+  await $.turn.complete(DONE)
+  await $.classic.PreCompact({ trigger: 'manual', custom_instructions: null } as never)
+  const wide = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await wait(clock, 4800 + 160 * 200)
+  await wide.unmount()
+  const narrow = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(100) })
+  await wait(clock, 160 * 3)
+  expect(rowText(blits.at(-1)!, 100, 0)).toContain('z Z  ·  HP refilling')
+  await narrow.unmount()
+  const back = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await wait(clock, 160 * 3)
+  expect(rowText(blits.at(-1)!, WIDE, 0)).toContain('z Z  ·  HP refilling')
+  await back.unmount()
+})

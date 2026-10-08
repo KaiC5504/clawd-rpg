@@ -83,6 +83,11 @@ function rests(): Moment[] {
     { name: 'packInn', story: backFromInn.story, times: span(backFromInn.at, PACK_MS), at: w => 2 * placeWidth(w), still: true },
     { name: 'calledAtPier', story: called.story, times: span(called.at + 4000, 1500), at: w => placeWidth(w), still: true },
     { name: 'quest', story: quest.story, times: span(quest.at, 2000) },
+    // Walking back out, the place's own text (the inn's sign) scrolls past him.
+    ...[4, 13, 20, 28, 40].flatMap(k => [
+      { name: `leavePier+${k}`, story: back.story, times: [back.at + PACK_MS + 160], at: (w: number) => placeWidth(w) + k },
+      { name: `leaveInn+${k}`, story: backFromInn.story, times: [backFromInn.at + PACK_MS + 160], at: (w: number) => 2 * placeWidth(w) + k },
+    ]),
   ]
 }
 
@@ -300,5 +305,22 @@ describe('resting between turns', () => {
     const m = moment('travel')
     const g = frame(scene(179, m.times[0]!, placeWidth(179) - 100, true, m.story))
     expect(textRow(g, 1)).toContain('→ Pier')
+  })
+})
+
+describe("the last trip's spots", () => {
+  test("an old trip's campfire never shows inside the pier he is at now", () => {
+    const trip = (origin: number, at: number, leftAt: number | null) => ({ origin, at, compactAt: null, leftAt })
+    for (const width of WIDTHS) {
+      const pw = placeWidth(width)
+      const now: Story = { ...NO_STORY, trip: trip(30, T0 + 70_000, null) }
+      const withTrail: Story = { ...now, trail: trip(0, T0, T0 + 65_000) }
+      for (const t of [T0 + 80_000, T0 + 83_000]) {
+        const a = frame(scene(width, t, 30 + pw, false, withTrail))
+        const b = frame(scene(width, t, 30 + pw, false, now))
+        expect([...a.px]).toEqual([...b.px])
+        expect([...a.text]).toEqual([...b.text])
+      }
+    }
   })
 })

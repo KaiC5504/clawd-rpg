@@ -13,7 +13,7 @@ import {
   questOf,
 } from './director'
 import type { Beat, Story } from './director'
-import { grid, line, rect, sprite, write } from './grid'
+import { EMPTY, at, grid, line, rect, sprite, write } from './grid'
 import type { Grid } from './grid'
 import { drawHud, drawable, hudLeft } from './hud'
 import { easeOut, lerp, through } from './noise'
@@ -22,7 +22,7 @@ import { FOREST } from './places/forest'
 import { INN } from './places/inn'
 import { PIER } from './places/pier'
 import type { Place } from './places/place'
-import { CLAWD_COL, COMPACT_BELOW, PACK_MS, camOf, clawdCol, placeWidth, restOf, spotsOf } from './road'
+import { CLAWD_COL, COMPACT_BELOW, PACK_MS, camOf, clawdCol, placeWidth, restOf, spotsOnRoad } from './road'
 import type { Rest, Spot } from './road'
 import { POSES, asleep, cheering, clawd, hurting, idling, sitting, trudging, walking } from './sprites/clawd'
 import type { Pose } from './sprites/clawd'
@@ -140,10 +140,17 @@ function caption(g: Grid, text: string, fg: number, before: number): void {
   write(g, 4, 0, chars.length > room ? chars.slice(0, room - 1).join('') + '…' : text, fg)
 }
 
-// The rest spots on screen: the current trip's first, so they cover the last trip's.
-function spotsOn(s: Scene): Spot[] {
-  const { story, t, width } = s
-  return [...(story.trip ? spotsOf(story.trip, t, width) : []), ...(story.trail ? spotsOf(story.trail, t, width) : [])]
+const spotsOn = (s: Scene): Spot[] => spotsOnRoad(s.story, s.t, s.width)
+
+// Text from any source (a place's sign scrolling past, a caption) never covers his pixels.
+function clearOff(g: Grid, me: ClawdPlace): void {
+  const solo = grid(g.w)
+  clawd(solo, me.x, me.y, me.pose)
+  for (const key of [...g.text.keys()]) {
+    const x = key % g.w
+    const row = Math.floor(key / g.w)
+    if (at(solo, x, row * 2) !== EMPTY || at(solo, x, row * 2 + 1) !== EMPTY) g.text.delete(key)
+  }
 }
 
 function drawRoad(g: Grid, s: Scene, spots: Spot[], cam: number, pw: number): void {
@@ -234,6 +241,7 @@ export function frame(s: Scene): Grid {
     if (said) caption(g, said[0], said[1], me.x)
   }
   drawHud(g, s.stats)
+  if (me) clearOff(g, me)
   if (story.levelUp && t >= story.levelUp.at && t - story.levelUp.at < LEVEL_UP_MS && !isCompact(s)) {
     write(g, hudLeft(s.width, s.stats), 3, `LEVEL UP!  Lv.${story.levelUp.level}`, 0xffd54f)
   }
