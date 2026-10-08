@@ -18,6 +18,14 @@ describe('battle art', () => {
     expect([0, 320, 640, 960].map(t => trudging(t).step)).toEqual([false, false, true, true])
   })
 
+  test('out of usage he shuffles along without the spring in his step', () => {
+    for (const t of [0, 640]) {
+      const g = grid(24)
+      clawd(g, 4, 1, trudging(t))
+      expect(Array.from({ length: 24 }, (_, x) => at(g, x, 0)).every(c => c === EMPTY)).toBe(true)
+    }
+  })
+
   test('foes never wear his orange, and stand on the ground', () => {
     for (const [kind, look] of Object.entries(FOES)) {
       expect(Object.values(look.pal)).not.toContain(ORANGE)

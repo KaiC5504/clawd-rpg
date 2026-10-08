@@ -12,6 +12,13 @@ const drawn = (pose: Pose) => {
   return px
 }
 
+// His lowest row of pixels: where his feet are and which columns they're in.
+const feet = (px: Map<string, number>) => {
+  const at = [...px.keys()].map(k => k.split(',').map(Number) as [number, number])
+  const y = Math.max(...at.map(([, y]) => y))
+  return { y, xs: at.filter(([, py]) => py === y).map(([x]) => x).sort((a, b) => a - b) }
+}
+
 // clawd-bar 0.3.0's standing Clawd, shadow row dropped: torso 11×7, arms 2×2, four legs, eyes 1×2.
 const STAND = new Map<string, number>()
 for (let y = 0; y < 7; y++) for (let x = 2; x <= 12; x++) STAND.set(`${x},${y}`, ORANGE)
@@ -36,11 +43,16 @@ describe('the big Clawd', () => {
     expect(walking(640).step).toBe(false)
   })
 
-  test('he stays inside a 15 × 9 box when standing or walking', () => {
-    for (const pose of [POSES.stand, walking(320)]) {
+  test('walking, he trots: up a pixel with his legs under him, then down with them spread', () => {
+    expect(feet(drawn(walking(0)))).toEqual({ y: 7, xs: [3, 5, 9, 11] })
+    expect(feet(drawn(walking(320)))).toEqual({ y: 8, xs: [2, 4, 10, 12] })
+  })
+
+  test('he stays inside a 15 × 9 box, springing at most a pixel above it while walking', () => {
+    for (const [pose, top] of [[POSES.stand, 0], [walking(320), 0], [walking(0), -1]] as const) {
       for (const key of drawn(pose).keys()) {
         const [x, y] = key.split(',').map(Number)
-        expect(x! >= 0 && x! < 15 && y! >= 0 && y! < 9).toBe(true)
+        expect(x! >= 0 && x! < 15 && y! >= top && y! < 9 + top).toBe(true)
       }
     }
   })

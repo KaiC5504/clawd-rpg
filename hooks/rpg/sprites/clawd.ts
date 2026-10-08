@@ -13,6 +13,7 @@ export type Pose = {
   top?: number
   dx?: number
   step?: boolean
+  hop?: boolean
   face?: 'eyes' | 'shut' | 'happy'
   fx?: number
   fy?: number
@@ -23,8 +24,9 @@ export type Pose = {
 
 // Ported from clawd-bar 0.3.0's hooks/sprites.ts with the shadow row dropped. Pose numbers keep
 // 0.3.0's grid (rows 6..14), so `y` here is the top of his head and row n draws at y + n - 6.
-export function clawd(g: Grid, x: number, y: number, o: Pose = {}): void {
+export function clawd(g: Grid, x: number, y0: number, o: Pose = {}): void {
   const dx = o.dx ?? 0
+  const y = o.hop ? y0 - 1 : y0
   if (o.sit) {
     const top = o.top ?? 9
     rect(g, x + 2, y + top - 6, 11, 15 - top, ORANGE)
@@ -35,7 +37,7 @@ export function clawd(g: Grid, x: number, y: number, o: Pose = {}): void {
     return
   }
   const top = o.top ?? 6
-  for (const lx of o.step ? [4, 6, 10, 12] : [3, 5, 9, 11]) rect(g, x + lx, y + 7, 1, 2, ORANGE)
+  for (const lx of o.step ? [2, 4, 10, 12] : [3, 5, 9, 11]) rect(g, x + lx, y + 7, 1, 2, ORANGE)
   rect(g, x + 2 + dx, y + top - 6, 11, 13 - top, ORANGE)
   rect(g, x + dx, y + (o.armL ?? 9) - 6, 2, 2, ORANGE)
   rect(g, x + 13 + dx, y + (o.armR ?? 9) - 6, 2, 2, ORANGE)
@@ -71,9 +73,10 @@ export const POSES = {
   sitOut: { sit: true, top: 10 },
 } as const satisfies Record<string, Pose>
 
-export const walking = (t: number): Pose => ({ fx: 1, step: Math.floor(t / LEG_STEP_MS) % 2 === 1 })
+// A trot: he springs up a pixel with his legs under him, then lands with them spread.
+export const walking = (t: number): Pose => (Math.floor(t / LEG_STEP_MS) % 2 === 1 ? { fx: 1, step: true } : { fx: 1, step: false, hop: true })
 
-// Out of usage: half-pace steps, arms hanging.
+// Out of usage: half-pace steps, arms hanging, no spring.
 export const trudging = (t: number): Pose => ({ fx: 1, fy: 1, armL: 10, armR: 10, step: Math.floor(t / (2 * LEG_STEP_MS)) % 2 === 1 })
 
 export const cheering = (t: number): Pose => (Math.floor(t / 480) % 2 === 1 ? POSES.bounce : POSES.cheer)
