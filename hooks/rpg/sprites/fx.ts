@@ -88,3 +88,23 @@ export function dust(g: Grid, x: number, t: number): void {
   const c = on(t, 160) ? 0xc8c0b0 : 0xa39890
   for (const [dx, dy] of [[-1, 9], [-3, 8], [-2, 9]] as const) put(g, x + dx, dy, c)
 }
+
+// A campfire at column x: stones, logs, and flames that flicker and throw sparks upward.
+export function fire(g: Grid, x: number, size: number, t: number): void {
+  for (let i = -6; i <= 6; i++) put(g, x + i, 9, Math.abs(i) < 4 ? 0x3a2a1a : 0x2a2016)
+  rect(g, x - 3, 9, 7, 1, 0x5a3d22)
+  put(g, x - 2, 8, 0x6b4a2b)
+  put(g, x + 2, 8, 0x6b4a2b)
+  const f = Math.floor(t / 160)
+  for (let c = -2; c <= 2; c++) {
+    const h = Math.round(size * (4 - Math.abs(c)) * (0.6 + noise(c * 7 + f) * 0.5))
+    for (let j = 0; j < h; j++) {
+      const q = j / Math.max(1, h)
+      put(g, x + c, 8 - j, q < 0.35 ? 0xff6b35 : q < 0.7 ? 0xff9f1c : 0xffd60a)
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    const age = (t / 180 + i * 4) % 12
+    put(g, x + Math.round(Math.sin(age + i) * 1.5), 7 - age, 0xffd60a)
+  }
+}

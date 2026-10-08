@@ -76,8 +76,9 @@ export const POSES = {
 const stride = (t: number, legMs: number): Pose['lift'] => ([undefined, 'odd', undefined, 'even'] as const)[Math.floor((2 * t) / legMs) % 4]
 
 // A waddle: the arm on the side of the lifted legs swings up, the other down.
-export const walking = (t: number): Pose => {
-  const lift = stride(t, LEG_STEP_MS)
+// `legMs`: how long each step takes; he hurries with quicker steps.
+export const walking = (t: number, legMs = LEG_STEP_MS): Pose => {
+  const lift = stride(t, legMs)
   if (lift === 'odd') return { fx: 1, lift, armL: 8, armR: 10 }
   if (lift === 'even') return { fx: 1, lift, armL: 10, armR: 8 }
   return { fx: 1 }
@@ -96,3 +97,9 @@ export const idling = (t: number): Pose => {
   const glance = t % 10400
   return glance > 6800 && glance < 8800 ? POSES.right : POSES.stand
 }
+
+// By the campfire: sitting, leaning out now and then.
+export const sitting = (t: number): Pose => (Math.floor(t / 2600) % 2 === 1 ? POSES.sitOut : POSES.sit)
+
+// In bed: sitting low, breathing slowly; the inn's blanket covers him from row 6 down.
+export const asleep = (t: number): Pose => ({ sit: true, top: Math.floor(t / 2600) % 2 === 1 ? 10 : 9 })
