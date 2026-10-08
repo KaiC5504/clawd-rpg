@@ -21,6 +21,12 @@ export function rect(g: Grid, x: number, y: number, w: number, h: number, c: num
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(g, x + i, y + j, c)
 }
 
+// A straight line of pixels, every `every`th one (2 gives a dotted fishing line).
+export function line(g: Grid, x0: number, y0: number, x1: number, y1: number, c: number, every = 1): void {
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1)
+  for (let i = 0; i <= n; i += every) put(g, x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n, c)
+}
+
 export function sprite(g: Grid, x: number, y: number, rows: readonly string[], pal: Readonly<Record<string, number>>): void {
   rows.forEach((row, j) => {
     for (let i = 0; i < row.length; i++) {

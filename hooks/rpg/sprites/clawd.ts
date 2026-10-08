@@ -85,7 +85,7 @@ export const walking = (t: number, legMs = LEG_STEP_MS): Pose => {
 }
 
 // Out of usage: half-pace steps, arms hanging.
-export const trudging = (t: number): Pose => ({ fx: 1, fy: 1, armL: 10, armR: 10, lift: stride(t, 2 * LEG_STEP_MS) })
+export const trudging = (t: number, legMs = 2 * LEG_STEP_MS): Pose => ({ fx: 1, fy: 1, armL: 10, armR: 10, lift: stride(t, legMs) })
 
 export const cheering = (t: number): Pose => (Math.floor(t / 480) % 2 === 1 ? POSES.bounce : POSES.cheer)
 
