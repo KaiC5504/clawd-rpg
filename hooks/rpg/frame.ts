@@ -14,7 +14,7 @@ import {
 import type { Beat, Story } from './director'
 import { grid, write } from './grid'
 import type { Grid } from './grid'
-import { drawHud, hudLeft } from './hud'
+import { drawHud, drawable, hudLeft } from './hud'
 import { easeOut, lerp, through } from './noise'
 import { FOREST } from './places/forest'
 import { POSES, cheering, clawd, hurting, idling, trudging, walking } from './sprites/clawd'
@@ -126,7 +126,7 @@ export function frame(s: Scene): Grid {
   if (beat === 'victory' && story.victory && !isCompact(s)) {
     const fx = foeX(s.width, s.stats)
     chest(g, Math.max(CLAWD_COL + 18, fx - 4), 4, t - story.victory.at > 400, t)
-    if (t - story.victory.at > 600) caption(g, `◆ ${story.victory.loot} · +${story.victory.gained} EXP`, 0xffd54f, me?.x ?? CLAWD_COL)
+    if (t - story.victory.at > 600) caption(g, `◆ ${drawable(story.victory.loot).join('')} · +${story.victory.gained} EXP`, 0xffd54f, me?.x ?? CLAWD_COL)
   }
   drawHud(g, s.stats)
   if (story.levelUp && t >= story.levelUp.at && t - story.levelUp.at < LEVEL_UP_MS && !isCompact(s)) {

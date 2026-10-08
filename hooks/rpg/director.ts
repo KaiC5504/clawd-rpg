@@ -119,11 +119,14 @@ export function step(s: Story, event: string, payload: HookPayload, now: number)
   const awards: Award[] = []
   const story = ((): Story => {
     switch (event) {
+      // A compaction happens mid-turn: the fight goes on through it.
       case 'SessionStart':
-        return NO_STORY
+        return payload.source === 'compact' ? s : NO_STORY
       case 'UserPromptSubmit':
         return { ...NO_STORY, levelUp: s.levelUp, turn: { active: true, at: now, files: {}, gained: 0, foes: 0 } }
       case 'PreToolUse': {
+        // Background work after the turn has ended has no turn to close its fight.
+        if (!s.turn.active) return s
         const input = typeof payload.tool_input === 'object' && payload.tool_input !== null ? (payload.tool_input as HookPayload) : {}
         const id = str(payload.tool_use_id)
         const work = classifyCall(str(payload.tool_name), input, id, now)

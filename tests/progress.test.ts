@@ -62,9 +62,12 @@ describe('loading saved progress', () => {
     expect(loadProgress({ v: 1, level: 2, zone: 'neon' }).progress.zone).toBe('forest')
   })
 
-  test('a version this build does not know is kept aside, and he starts fresh', () => {
-    const future = { v: 2, exp: 9000 }
-    expect(loadProgress(future)).toEqual({ progress: FRESH, backup: future })
+  test('a save that is not a save is kept aside, and he starts fresh', () => {
     expect(loadProgress('garbage')).toEqual({ progress: FRESH, backup: 'garbage' })
+    expect(loadProgress({ exp: 9000 })).toEqual({ progress: FRESH, backup: { exp: 9000 } })
+  })
+
+  test('a save from a newer build is marked newer, never backed up over', () => {
+    expect(loadProgress({ v: 2, exp: 9000 })).toEqual({ progress: FRESH, isNewer: true })
   })
 })

@@ -28,10 +28,13 @@ const num = (value: unknown, min: number, fallback: number) => (typeof value ===
 const unlockedAt = (level: number) => ZONES.filter(z => level >= UNLOCK_LEVEL[z])
 
 // Stored progress may come from an older build, another hand, or nothing at all: every field
-// falls back on its own, and a version this build doesn't know is kept aside, not overwritten.
-export function loadProgress(raw: unknown): { progress: Progress; backup?: unknown } {
+// falls back on its own, and anything that isn't a save is kept aside, not overwritten. A newer
+// build's save is never touched: a session still running this build would wipe it.
+export function loadProgress(raw: unknown): { progress: Progress; backup?: unknown; isNewer?: true } {
   if (raw === undefined || raw === null) return { progress: FRESH }
-  if (typeof raw !== 'object' || (raw as { v?: unknown }).v !== 1) return { progress: FRESH, backup: raw }
+  const v = typeof raw === 'object' ? (raw as { v?: unknown }).v : undefined
+  if (typeof v === 'number' && v > 1) return { progress: FRESH, isNewer: true }
+  if (v !== 1) return { progress: FRESH, backup: raw }
   const r = raw as Record<string, unknown>
   const level = Math.floor(num(r.level, 1, 1))
   const zone = ZONES.includes(r.zone as ZoneId) ? (r.zone as ZoneId) : 'forest'

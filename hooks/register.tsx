@@ -57,26 +57,35 @@ async function refreshPlace($: EngineInterface): Promise<void> {
 }
 
 // Progress lives in the store, shared by every session: it is read fresh before each change so
-// two sessions earning EXP at once don't overwrite each other.
-async function loadSaved($: EngineInterface): Promise<Progress> {
-  const { progress: loaded, backup } = loadProgress(await $.store.get('progress'))
+// two sessions earning EXP at once don't overwrite each other. null: a newer build saved it, so
+// this session plays on in memory and leaves the save alone.
+async function loadSaved($: EngineInterface): Promise<Progress | null> {
+  const { progress: loaded, backup, isNewer } = loadProgress(await $.store.get('progress'))
+  if (isNewer) return null
   if (backup !== undefined) {
-    await $.store.set('progressBackup', backup)
+    // The first backup is the one most likely to hold real progress.
+    if ((await $.store.get('progressBackup')) === undefined) await $.store.set('progressBackup', backup)
     await $.store.set('progress', loaded)
   }
   return loaded
 }
 
+async function saveWith($: EngineInterface, change: (p: Progress) => Progress): Promise<void> {
+  const saved = await loadSaved($)
+  progress = change(saved ?? progress)
+  if (saved) await $.store.set('progress', progress)
+}
+
 async function earn($: EngineInterface, awards: Award[]): Promise<number> {
-  let p = await loadSaved($)
   let levelsUp = 0
-  for (const a of awards) {
-    const r = gain(p, a)
-    p = r.progress
-    levelsUp += r.levelsUp
-  }
-  await $.store.set('progress', p)
-  progress = p
+  await saveWith($, p => {
+    for (const a of awards) {
+      const r = gain(p, a)
+      p = r.progress
+      levelsUp += r.levelsUp
+    }
+    return p
+  })
   return levelsUp
 }
 
@@ -84,14 +93,24 @@ async function ensureReady($: EngineInterface): Promise<void> {
   if (isReady) return
   isReady = true
   if ((await $.store.get('isHidden')) === true) await update($, isHidden, () => true)
-  progress = await loadSaved($)
+  progress = (await loadSaved($)) ?? FRESH
   road.distance = progress.roadPos
   $.clock.every(STATS_MS, () => void refreshStats($))
   await refreshPlace($).catch(() => undefined)
   await refreshStats($)
 }
 
-async function observe($: EngineInterface, event: string, payload: HookPayload): Promise<void> {
+// Hooks for parallel tool calls run side by side: each event steps the story only once the one
+// before it has landed, or both would step from the same story and one would be lost.
+let queue: Promise<void> = Promise.resolve()
+
+function observe($: EngineInterface, event: string, payload: HookPayload): Promise<void> {
+  const run = queue.then(() => observeNow($, event, payload))
+  queue = run.catch(() => undefined)
+  return run
+}
+
+async function observeNow($: EngineInterface, event: string, payload: HookPayload): Promise<void> {
   await ensureReady($)
   const now = await $.clock.now()
   const before = await storyNow($)
@@ -104,8 +123,7 @@ async function observe($: EngineInterface, event: string, payload: HookPayload):
   }
   if (told !== before) await update($, story, () => told)
   if (event === 'TurnEnded' && Math.floor(road.distance) !== progress.roadPos) {
-    progress = { ...(await loadSaved($)), roadPos: Math.floor(road.distance) }
-    await $.store.set('progress', progress)
+    await saveWith($, p => ({ ...p, roadPos: Math.floor(road.distance) }))
   }
 }
 
@@ -200,7 +218,8 @@ export const register: Register = on => {
   on('tool.call', { tool: 'Bash' }, ($, e, next) => onShell($, e as never, next as never) as never)
   on('tool.call', { tool: 'PowerShell' }, ($, e, next) => onShell($, e as never, next as never) as never)
 
-  // A render hook may not write state, so the story moves on session events.
+  // A render hook may not write state, so the story moves on session events. The turn ends here and
+  // not at classic.Stop, which a user's own Stop hook can block to keep Claude working.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) await quietly(observe($, 'TurnEnded', { reason: e.reason }))
@@ -227,10 +246,6 @@ export const register: Register = on => {
   })
   on('classic.PostToolUseFailure', async ($, e, next) => {
     await quietly(observe($, 'PostToolUseFailure', e as never))
-    return next(e)
-  })
-  on('classic.Stop', async ($, e, next) => {
-    await quietly(observe($, 'TurnEnded', { reason: 'answer' }))
     return next(e)
   })
   on('classic.Notification', async ($, e, next) => {

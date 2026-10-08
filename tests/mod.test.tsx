@@ -343,10 +343,28 @@ test('EXP another session earned meanwhile is kept, not overwritten', async ($, 
 })
 
 test('a save this build cannot read is kept aside, and he starts fresh', async ($, on) => {
-  const future = { v: 9, exp: 1 }
-  const { store } = await turn($, on, { saved: { progress: future } })
-  expect(store.get('progressBackup')).toEqual(future)
+  const broken = { exp: 1 }
+  const { store } = await turn($, on, { saved: { progress: broken } })
+  expect(store.get('progressBackup')).toEqual(broken)
   expect(store.get('progress')).toMatchObject({ v: 1, level: 1, exp: 0 })
+})
+
+test('an earlier backup is never replaced by a later one', async ($, on) => {
+  const { store } = await turn($, on, { saved: { progress: 'junk', progressBackup: { v: 1, level: 30 } } })
+  expect(store.get('progressBackup')).toEqual({ v: 1, level: 30 })
+})
+
+test('a save from a newer build is left as it is, and he plays on without saving', async ($, on) => {
+  const newer = { v: 2, exp: 9000, level: 40 }
+  const { clock, store } = await turn($, on, { saved: { progress: newer } })
+  await $.tool.call(EDIT as never)
+  await $.turn.complete(DONE)
+  await clock.advance(1000)
+  expect(store.get('progress')).toEqual(newer)
+  expect(store.get('progressBackup')).toBeUndefined()
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE, true) })
+  expect(rowText(await raster(t), WIDE, 0)).toContain('+15 EXP')
+  await t.unmount()
 })
 
 test('an interrupt earns nothing: the foe flees', async ($, on) => {
@@ -378,5 +396,61 @@ test('out of usage he trudges: the road moves every other frame', async ($, on) 
   for (let i = 0; i < 12; i++) await clock.advance(160)
   const shift = Array.from({ length: 20 }, (_, k) => k).find(k => Array.from({ length: 20 }, (_, x) => x).every(x => groundCell(blits.at(-1)!, WIDE, x) === groundCell(first, WIDE, x + k)))
   expect(shift).toBe(6)
+  await t.unmount()
+})
+
+const FOE_COLORS = [0x6fbf4e, 0xd6453d]
+
+test('tool calls running side by side land like the same calls one after another', async ($, on) => {
+  const { clock, store } = await turn($, on)
+  await Promise.all(Array.from({ length: 6 }, () => $.tool.call(EDIT as never)))
+  await $.turn.complete(DONE)
+  await clock.settle()
+  // Six hits fell the first foe (2-4 HP) and at least one more before the turn was over.
+  expect((store.get('progress') as { zoneMeter: number }).zoneMeter).toBeGreaterThanOrEqual(2)
+})
+
+test('loot named after a file the terminal cannot draw one cell wide keeps the band', async ($, on) => {
+  const { clock } = await turn($, on)
+  await $.tool.call({ ...EDIT, file_path: 'C:/src/日本語.ts' } as never)
+  await $.turn.complete(DONE)
+  await clock.advance(1000)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE, true) })
+  expect(rowText(await raster(t), WIDE, 0)).toContain('of ???.ts')
+  await t.unmount()
+})
+
+test('compacting mid-turn keeps the fight, and the turn still ends in victory', async ($, on) => {
+  const { clock, store } = await turn($, on)
+  await $.tool.call(EDIT as never)
+  await $.classic.SessionStart({ source: 'compact' })
+  await $.tool.call(EDIT as never)
+  await $.turn.complete(DONE)
+  await clock.settle()
+  expect(store.get('progress')).toMatchObject({ exp: 15 })
+})
+
+test('a Stop hook that keeps Claude working does not end the fight', async ($, on) => {
+  on('classic.Stop', () => ({ block: 'keep going' }) as never)
+  const { clock, store } = await turn($, on)
+  await $.tool.call(EDIT as never)
+  await $.classic.Stop({} as never)
+  await clock.settle()
+  expect((store.get('progress') as { exp?: number } | undefined)?.exp ?? 0).toBe(0)
+  await $.turn.complete(DONE)
+  await clock.settle()
+  expect(store.get('progress')).toMatchObject({ exp: 15 })
+})
+
+test('a tool call after the turn has ended brings no foe', async ($, on) => {
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits })
+  await $.turn.complete(DONE)
+  await clock.advance(6000)
+  await $.tool.call(EDIT as never)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await clock.advance(2000)
+  const colors = colorsIn(blits.at(-1)!)
+  expect(FOE_COLORS.some(c => colors.has(c))).toBe(false)
   await t.unmount()
 })

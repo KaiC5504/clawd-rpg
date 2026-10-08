@@ -21,9 +21,9 @@ const bar = (on: string, off: string, n: number, frac: number) => {
   return on.repeat(k) + off.repeat(n - k)
 }
 const hpColor = (hp: number) => (hp > 0.5 ? 0x6bd46b : hp > 0.25 ? 0xe3b341 : 0xe5484d)
-// The engine refuses a whole Raster over one wide, emoji or combining character, and repo names can
-// hold any of them; ASCII and composed Latin letters are safe one-cell characters.
-const drawable = (s: string) => [...s.normalize('NFC')].map(ch => (/^[\x20-\x7eÀ-ɏ]$/.test(ch) ? ch : '?'))
+// The engine refuses a whole Raster over one wide, emoji or combining character, and repo and file
+// names can hold any of them; ASCII and composed Latin letters are safe one-cell characters.
+export const drawable =(s: string) => [...s.normalize('NFC')].map(ch => (/^[\x20-\x7eÀ-ɏ]$/.test(ch) ? ch : '?'))
 const clip = (s: string) => {
   const chars = drawable(s)
   return chars.length > PLACE_MAX ? chars.slice(0, PLACE_MAX - 1).join('') + CUT : chars.join('')
