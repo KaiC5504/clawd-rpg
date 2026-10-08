@@ -1,0 +1,71 @@
+export type ZoneId = 'forest' | 'dungeon' | 'neon'
+export type AwardKind = 'battle' | 'elite' | 'raid' | 'turn'
+export type Award = { kind: AwardKind; foe?: string }
+
+// `exp` is what he has towards the next level, not a lifetime total.
+export type Progress = {
+  v: 1
+  exp: number
+  level: number
+  zone: ZoneId
+  zoneMeter: number
+  unlocked: ZoneId[]
+  bestiary: Record<string, number>
+  roadPos: number
+}
+
+export const EXP: Record<AwardKind, number> = { battle: 10, elite: 25, raid: 60, turn: 5 }
+export const UNLOCK_LEVEL: Record<ZoneId, number> = { forest: 1, dungeon: 3, neon: 6 }
+const ZONES = Object.keys(UNLOCK_LEVEL) as ZoneId[]
+// Battles won in a zone before its boss turn (plan 4 brings the boss).
+export const ZONE_BATTLES = 12
+
+export const toNext = (level: number) => 50 + 25 * level
+
+export const FRESH: Progress = { v: 1, exp: 0, level: 1, zone: 'forest', zoneMeter: 0, unlocked: ['forest'], bestiary: {}, roadPos: 0 }
+
+const num = (value: unknown, min: number, fallback: number) => (typeof value === 'number' && Number.isFinite(value) && value >= min ? value : fallback)
+const unlockedAt = (level: number) => ZONES.filter(z => level >= UNLOCK_LEVEL[z])
+
+// Stored progress may come from an older build, another hand, or nothing at all: every field
+// falls back on its own, and a version this build doesn't know is kept aside, not overwritten.
+export function loadProgress(raw: unknown): { progress: Progress; backup?: unknown } {
+  if (raw === undefined || raw === null) return { progress: FRESH }
+  if (typeof raw !== 'object' || (raw as { v?: unknown }).v !== 1) return { progress: FRESH, backup: raw }
+  const r = raw as Record<string, unknown>
+  const level = Math.floor(num(r.level, 1, 1))
+  const zone = ZONES.includes(r.zone as ZoneId) ? (r.zone as ZoneId) : 'forest'
+  const bestiary: Record<string, number> = {}
+  if (typeof r.bestiary === 'object' && r.bestiary !== null) {
+    for (const [k, n] of Object.entries(r.bestiary)) if (typeof n === 'number' && n > 0) bestiary[k] = Math.floor(n)
+  }
+  return {
+    progress: {
+      v: 1,
+      exp: Math.min(num(r.exp, 0, 0), toNext(level) - 1),
+      level,
+      zone: unlockedAt(level).includes(zone) ? zone : 'forest',
+      zoneMeter: Math.min(Math.floor(num(r.zoneMeter, 0, 0)), ZONE_BATTLES),
+      unlocked: unlockedAt(level),
+      bestiary,
+      roadPos: num(r.roadPos, 0, 0),
+    },
+  }
+}
+
+export function gain(p: Progress, award: Award): { progress: Progress; levelsUp: number } {
+  let exp = p.exp + EXP[award.kind]
+  let level = p.level
+  while (exp >= toNext(level)) {
+    exp -= toNext(level)
+    level++
+  }
+  const won = award.kind === 'battle' || award.kind === 'elite'
+  const bestiary = award.foe ? { ...p.bestiary, [award.foe]: (p.bestiary[award.foe] ?? 0) + 1 } : p.bestiary
+  return {
+    progress: { ...p, exp, level, unlocked: unlockedAt(level), zoneMeter: won ? Math.min(ZONE_BATTLES, p.zoneMeter + 1) : p.zoneMeter, bestiary },
+    levelsUp: level - p.level,
+  }
+}
+
+export const expFraction = (p: Progress) => p.exp / toNext(p.level)
