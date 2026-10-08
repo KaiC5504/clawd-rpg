@@ -50,6 +50,8 @@ let lastBlitAt: number | null = null
 // The desktop's loop as built, and what it shows, so a redraw neither rebuilds nor restarts it.
 let desktop: { key: string; svg: string; ms: number; startedAt: number } | null = null
 let isOnDesktop = false
+// The key a redraw was last asked for, so a surface that stopped drawing isn't asked every second.
+let askedFor = ''
 
 function stopPainting(): void {
   frameTimer?.cancel()
@@ -115,7 +117,7 @@ async function ensureReady($: EngineInterface): Promise<void> {
   if ((await $.store.get('isHidden')) === true) await update($, isHidden, () => true)
   progress = (await loadSaved($)) ?? FRESH
   road.distance = progress.roadPos
-  $.clock.every(STATS_MS, () => void refreshStats($).then(() => refreshDesktop($)))
+  $.clock.every(STATS_MS, () => void refreshStats($).then(() => walkUnseen($)).then(() => refreshDesktop($)))
   await refreshPlace($).catch(() => undefined)
   await refreshStats($)
 }
@@ -238,7 +240,18 @@ function altOf(s: Scene): string {
 async function refreshDesktop($: EngineInterface): Promise<void> {
   if (!isOnDesktop || !desktop) return
   const now = await $.clock.now()
-  if (desktopKeyOf((await desktopScenes($, now))(0)) !== desktop.key) $.ui.invalidate('ui.render')
+  const key = desktopKeyOf((await desktopScenes($, now))(0))
+  if (key === desktop.key || key === askedFor) return
+  askedFor = key
+  $.ui.invalidate('ui.render')
+}
+
+// With no terminal band painting, nothing else moves the road: a second's worth of frames at a time,
+// so the desktop's scenes (and where a trip or a gate starts) keep up with the session.
+async function walkUnseen($: EngineInterface): Promise<void> {
+  if (painting || !isOnDesktop) return
+  const now = await $.clock.now()
+  for (let i = 0; i < Math.round(STATS_MS / FRAME_MS); i++) await motionNow($, DESKTOP_COLS, now, true)
 }
 
 async function drawBand($: EngineInterface, e: BandEvent, next: (e: BandEvent) => unknown) {
@@ -266,7 +279,11 @@ async function drawBand($: EngineInterface, e: BandEvent, next: (e: BandEvent) =
 // The desktop app and the phone draw the band as a looping Svg; their redraws never touch the
 // terminal's band.
 async function drawRemote($: EngineInterface, e: BandEvent, next: (e: BandEvent) => unknown) {
-  if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
+  if (e.props.hasSurvey || (await read($, isHidden))) {
+    isOnDesktop = false
+    return next(e)
+  }
+  if (!painting) road.isWorking = e.props.isWorking
   const now = await $.clock.now()
   const sceneAt = await desktopScenes($, now)
   const first = sceneAt(0)

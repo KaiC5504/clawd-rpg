@@ -83,4 +83,46 @@ own code.
 
 ## Decisions made without KaiC
 
-Filled in as they're made, with the cost if he'd have chosen differently.
+Each with what it costs if he'd have chosen differently.
+
+1. **Version 1.0.0**, with a `v1.0.0` tag and a GitHub release, since this finishes slice 1 and the
+   plan list ends in "release". Cost: a version label; a tag and release are quick to redo.
+2. **The SVG encoder changed:** one path of one-pixel strokes per colour instead of a rect per run
+   (about a quarter of the size: 12 frames at 120 columns in 35k characters, where the spike's rects
+   needed 164k), and the band's text drawn as `<text>` in its cells. Cost: if a surface draws the
+   strokes softly, back to rects with fewer frames.
+3. **The desktop shows him at the rest spot between turns**, not walking there: it has no frame
+   timer, only loops. Cost: the walk to the pier is terminal-only.
+4. **The desktop band is about 8 px a column, at most 1400 px wide**, drawn in the sandboxed frame
+   (`isInteractive`) as clawd-bar does. Cost: a size tweak.
+5. **The demo is 18 scenes, about a minute, built with the real director**, so it always shows what
+   the game really does. It has its own HUD (Lv.7, then Lv.8 after the boss), and the real road
+   waits while it plays. Cost: scene order and length are taste.
+6. **`/rpg` with anything other than stats, demo or doctor toggles the band, as before.**
+7. **README pictures:** five loops at 150 columns (battle, party, boss and gate, rest, zones), about
+   1.1 MB together. Cost: page weight, or a different selection.
+
+## Final review (fresh reviewer, Opus)
+
+No Critical findings. Fixed, each with a test that failed first:
+- Once a desktop or phone had drawn the band and stopped, the 1 s timer asked for a redraw every
+  second for the rest of the session: it now asks once per change, and a hidden band stops it.
+  Test: mod "a desktop band that has gone away is not redrawn every second".
+- With only the desktop showing the band, the road never moved: he stood still through every walk,
+  and after a boss stayed in front of the gate. The 1 s timer now walks the road when no terminal
+  band paints it. Test: mod "with only the desktop showing the band, he still walks the road".
+
+Deferred minors:
+- `resumeAt` adds about 40 characters after the size check (loops measure at most 59.5k of 131k).
+- `/rpg doctor`'s "last one N s ago" keeps growing between turns, since identical frames aren't sent.
+- `/rpg stats` with a save from a newer build shows this session's in-memory progress without saying so.
+- A store that throws at start-up means the 1 s timer never starts (older code; the desktop now
+  leans on it too).
+- `/rpg stats` lists foes by their ids (`shroom ×3`, `bug ×1`), not their names.
+- SVG text relies on `white-space:pre` alone; `xml:space="preserve"` would also cover WebKit.
+- Review Focus tests not written as mod tests: a redraw resuming mid-loop, the "widen past 40"
+  message, stats with a newer or broken save, live beats at 120 columns (all handled in code).
+- `/rpg stat` (a typo) or `/rpg demo stop` hides the band (decision 6).
+- Nits: an O(n²) array copy in `strokes`, a literal 50 for `CLAWD_COL` in `altOf`, `ZONE_NAMES` in
+  two files, VS Code also gets the Svg but the docs only name the desktop and phone.
+

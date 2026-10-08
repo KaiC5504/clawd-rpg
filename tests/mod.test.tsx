@@ -691,3 +691,37 @@ test("a turn with a party is a raid: 60 EXP more than the turn alone", async ($,
   await $.turn.complete(DONE)
   expect(store.get('progress')).toMatchObject({ exp: 65 })
 })
+
+test('a desktop band that has gone away is not redrawn every second', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  fakeSession(on, [])
+  let redraws = 0
+  on('ui.invalidate', () => {
+    redraws++
+    return { value: undefined }
+  })
+  on('tool.call', { tool: 'Read' }, () => ({ result: {} }) as never)
+  await $.classic.SessionStart({ source: 'startup' })
+  await $.classic.UserPromptSubmit({ prompt: 'go' })
+  await clock.settle()
+  const d = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'desktop', ...band(150, true) })
+  await d.unmount()
+  await $.tool.call({ tool: 'Read', file_path: 'a.ts' } as never)
+  redraws = 0
+  await clock.advance(6000)
+  expect(redraws).toBeLessThanOrEqual(1)
+})
+
+test('with only the desktop showing the band, he still walks the road', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const store = fakeSession(on, [])
+  on('turn.complete', () => ({ text: '' }))
+  await $.classic.SessionStart({ source: 'startup' })
+  await $.classic.UserPromptSubmit({ prompt: 'go' })
+  await clock.settle()
+  const d = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'desktop', ...band(150, true) })
+  await clock.advance(5000)
+  await $.turn.complete(DONE)
+  expect((store.get('progress') as { roadPos: number }).roadPos).toBeGreaterThan(20)
+  await d.unmount()
+})
