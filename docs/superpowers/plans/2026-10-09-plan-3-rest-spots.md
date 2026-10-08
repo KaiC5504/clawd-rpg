@@ -12,7 +12,7 @@
 
 **This is plan 3 of 5.** Plan 4: Dungeon + Neon City zones with their rest spots (crystal room, ramen stall) and the gates between zones, bosses at the full zone meter, party mini Clawds. Plan 5: desktop SVG loops, `/rpg demo|stats|doctor`, README art, release.
 
-**How this plan was checked:** every code block below was run before the plan was written, in a scratch copy of the repo at `607da08`: each task applied in order passes `claude plugin validate .` and gives 125 → 138 → 155 → 161 → 167 passing tests. A contact sheet of the rest scenes at 179 columns (plus 80 and 120) was checked by eye.
+**How this plan was checked:** every code block below was run before the plan was written, in a scratch copy of the repo at `971c689` (Clawd's trot): each task applied in order passes `claude plugin validate .` and gives 127 → 140 → 157 → 163 → 169 passing tests. A contact sheet of the rest scenes at 179 columns (plus 80 and 120) was checked by eye.
 
 ## Scope
 
@@ -348,12 +348,12 @@ export function fire(g: Grid, x: number, size: number, t: number): void {
 
 In `hooks/rpg/sprites/clawd.ts`, replace
 ```ts
-export const walking = (t: number): Pose => ({ fx: 1, step: Math.floor(t / LEG_STEP_MS) % 2 === 1 })
+export const walking = (t: number): Pose => (Math.floor(t / LEG_STEP_MS) % 2 === 1 ? { fx: 1, step: true } : { fx: 1, step: false, hop: true })
 ```
 with
 ```ts
 // `legMs`: how long each step takes; he hurries with quicker steps.
-export const walking = (t: number, legMs = LEG_STEP_MS): Pose => ({ fx: 1, step: Math.floor(t / legMs) % 2 === 1 })
+export const walking = (t: number, legMs = LEG_STEP_MS): Pose => (Math.floor(t / legMs) % 2 === 1 ? { fx: 1, step: true } : { fx: 1, step: false, hop: true })
 ```
 and append to the end of the file:
 ```ts
@@ -367,7 +367,7 @@ export const asleep = (t: number): Pose => ({ sit: true, top: Math.floor(t / 260
 - [ ] **Step 4: Run to verify they pass**
 
 Run: `claude plugin validate . && claude plugin test .`
-Expected: validation passes; 125 pass (119 + 6).
+Expected: validation passes; 127 pass (121 + 6).
 
 - [ ] **Step 5: Commit**
 
@@ -782,7 +782,7 @@ export function beatOf(s: Story, now: number): Beat {
 - [ ] **Step 4: Run to verify they pass**
 
 Run: `claude plugin validate . && claude plugin test .`
-Expected: validation passes; 138 pass (13 new).
+Expected: validation passes; 140 pass (13 new).
 
 - [ ] **Step 5: Commit**
 
@@ -1057,7 +1057,7 @@ export function moveRoad(story: Story, now: number, distance: number, width: num
 - [ ] **Step 4: Run to verify they pass**
 
 Run: `claude plugin validate . && claude plugin test .`
-Expected: validation passes; 155 pass (17 new).
+Expected: validation passes; 157 pass (17 new).
 
 - [ ] **Step 5: Commit**
 
@@ -1660,7 +1660,7 @@ export function frame(s: Scene): Grid {
 - [ ] **Step 4: Run to verify they pass**
 
 Run: `claude plugin validate . && claude plugin test .`
-Expected: validation passes; 161 pass (6 new; the Plan 2 frame tests now cover the rest scenes too).
+Expected: validation passes; 163 pass (6 new; the Plan 2 frame tests now cover the rest scenes too).
 
 - [ ] **Step 5: Commit**
 
@@ -2065,7 +2065,7 @@ export const register: Register = on => {
 - [ ] **Step 4: Run to verify they pass**
 
 Run: `claude plugin validate . && claude plugin test .`
-Expected: validation passes (its "gating hook without .catch" notes are advisory); 167 pass.
+Expected: validation passes (its "gating hook without .catch" notes are advisory); 169 pass.
 
 - [ ] **Step 5: Commit**
 
@@ -2129,7 +2129,7 @@ Known and left for later (don't count these as failures):
 - [ ] **Step 2: Run the whole suite once more**
 
 Run: `claude plugin validate . && claude plugin test .`
-Expected: validation passes; 167 pass.
+Expected: validation passes; 169 pass.
 
 - [ ] **Step 3: Commit**
 
