@@ -73,6 +73,14 @@ export const POSES = {
 
 export const walking = (t: number): Pose => ({ fx: 1, step: Math.floor(t / LEG_STEP_MS) % 2 === 1 })
 
+// Out of usage: half-pace steps, arms hanging.
+export const trudging = (t: number): Pose => ({ fx: 1, fy: 1, armL: 10, armR: 10, step: Math.floor(t / (2 * LEG_STEP_MS)) % 2 === 1 })
+
+export const cheering = (t: number): Pose => (Math.floor(t / 480) % 2 === 1 ? POSES.bounce : POSES.cheer)
+
+// Knocked back: eyes shut, arms down, shaking on the spot.
+export const hurting = (t: number): Pose => ({ armL: 10, armR: 10, face: 'shut', dx: Math.floor(t / 160) % 2 === 1 ? 1 : -1 })
+
 export const idling = (t: number): Pose => {
   if (t % 5200 < 160) return POSES.blink
   const glance = t % 10400

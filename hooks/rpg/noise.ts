@@ -8,4 +8,10 @@ export function noise(n: number): number {
   return x - Math.floor(x)
 }
 
-export const pick = <T>(items: readonly T[], t: number, ms: number): T => items[Math.floor(t / ms) % items.length]!
+export const clamp01 = (x: number) => Math.max(0, Math.min(1, x))
+export const lerp = (a: number, b: number, q: number) => a + (b - a) * q
+export const easeOut = (q: number) => 1 - (1 - clamp01(q)) ** 3
+// How far `t` is through the span from `start` lasting `ms`, as 0..1.
+export const through = (t: number, start: number, ms: number) => clamp01((t - start) / ms)
+
+export const pick =<T>(items: readonly T[], t: number, ms: number): T => items[Math.floor(t / ms) % items.length]!
