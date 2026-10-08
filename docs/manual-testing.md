@@ -66,3 +66,45 @@ Known and left for later (don't count these as failures):
 - An edit you reject at the permission prompt still lands a hit.
 - A queued message sent while Claude works may clear the current foe without a victory.
 - Subagents' tool calls count as Clawd's hits (the party arrives in plan 4).
+
+
+## Plan 3: rest spots, pace and the quest line
+
+Rest spots come into view between turns, so most of this is watching the band while you read
+Claude's answer or step away.
+
+- [ ] A turn ends: after the victory, Clawd hurries right; a `→ Pier` signpost passes, the lakeside
+      pier slides in and stops exactly filling the band. He stands at the end of the jetty with
+      his rod out and a bobbing float; now and then the float dips and a fish flies in. Top-left:
+      `waiting for you…`.
+- [ ] Leave it a minute: he walks on to the campfire and sits on the log by the fire, tent on the
+      right. Top-left: `idle · warming up`.
+- [ ] Leave it ten minutes: on to the inn, asleep in bed under the red blanket by the fireplace.
+      Top-left: `z Z`.
+- [ ] `/compact` between turns: he goes straight to the inn, top-left `z Z  ·  HP refilling`, and
+      the HUD's HP bar fills as the context drops.
+- [ ] Send a prompt while he rests: he reels in (or gets out of bed), then walks right, out of the
+      rest spot and back into the forest.
+- [ ] Send a prompt while he's still on his way to a spot: no packing up, he goes straight back to
+      work.
+- [ ] A new Claude Code window: he heads for the pier while waiting for your first prompt.
+- [ ] His walk is the waddle: each pair of legs lifts in turn while the arm on that side swings up.
+      Out of usage, half pace with both arms hanging.
+- [ ] While Claude thinks or reads, a steady walk; when Claude fires off several tool calls in a
+      few seconds, he hurries (faster scroll and quicker steps).
+- [ ] Out of usage (MP empty), every pace is halved.
+- [ ] Ask Claude to plan a few steps as tasks: the top-left reads `☐ 1/4 <the task in progress>`
+      while he works, updates as tasks finish, and goes away once all are done.
+- [ ] Claude asks you something while he rests: he puts the rod down and turns to you with a `!`
+      (in bed he sits up).
+- [ ] Resize the window while he rests: the band still shows only the rest spot.
+- [ ] Below 100 columns: the rest spots still show, with Clawd at the left; no signpost names or
+      captions.
+- [ ] Throughout: Clawd is always his own orange; no text sits on him; the band never flickers
+      or drops out.
+- [ ] Judge the look: at some widths the campfire's tent stands under the HUD text (as in the
+      sketch). Say if it should move.
+
+Known and left for later (don't count these as failures):
+- The Dungeon's crystal room, Neon City's ramen stall and the gates between zones come with those
+  zones in plan 4.
