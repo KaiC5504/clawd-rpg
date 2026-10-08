@@ -213,14 +213,82 @@ test('/rpg hides the band and brings it back, and remembers', async ($, on) => {
   await back.unmount()
 })
 
-test('the desktop gets nothing yet', async ($, on) => {
+test('the desktop draws the band as a looping Svg, under its size cap', async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   fakeSession(on, [])
   await $.classic.SessionStart({ source: 'startup' })
   await clock.settle()
   const d = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'desktop', ...band(150) })
-  expect(await d.find({ type: 'Svg' })).toBeUndefined()
+  const svg = await d.find({ type: 'Svg' } as never)
+  expect(svg).toBeDefined()
+  const props = svg!.props as { source: string; alt: string; isInteractive?: boolean }
+  expect(props.source.startsWith('<svg')).toBe(true)
+  expect(props.source.length).toBeLessThanOrEqual(131072)
+  expect(props.alt.length).toBeGreaterThan(0)
   await d.unmount()
+})
+
+const typed = (args: string) => ({ ...TYPED_RPG, args })
+
+test('/rpg stats says his level, zone and bestiary', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  fakeSession(on, [], undefined, undefined, { progress: { v: 1, level: 4, exp: 12, zone: 'dungeon', zoneMeter: 5, bestiary: { slime: 3 } } })
+  await $.classic.SessionStart({ source: 'startup' })
+  await clock.settle()
+  const text = (await $.command.run(typed('stats'))).text
+  expect(text).toContain('Clawd · Lv.4 · 12/150 EXP to Lv.5')
+  expect(text).toContain('Zone: Dungeon · 5/12 battles to the Merge Hydra')
+  expect(text).toContain('Bestiary: slime ×3')
+})
+
+test('/rpg doctor checks the band, the save, and whether clawd-bar is on too', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  fakeSession(on, [])
+  on('settings.read', () => ({ value: { enabledPlugins: { 'clawd-bar@clawd-bar': true, 'clawd-rpg@clawd-rpg': true } } }))
+  await $.classic.SessionStart({ source: 'startup' })
+  await clock.settle()
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await clock.advance(320)
+  const text = (await $.command.run(typed('doctor'))).text
+  expect(text).toContain('· Band: shown, last drawn 179 columns wide (full view), painting frames')
+  expect(text).toContain('· Save: fine (Lv.1, Enchanted Forest)')
+  expect(text).toContain('· clawd-bar: also enabled')
+  await t.unmount()
+})
+
+test('/rpg demo plays a day on the road on the band, then /rpg demo stops it, leaving progress alone', async ($, on) => {
+  const blits: string[] = []
+  const clock = mock.clock(on, { now: NOW })
+  const store = fakeSession(on, blits)
+  await $.classic.SessionStart({ source: 'startup' })
+  await clock.settle()
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  expect((await $.command.run(typed('demo'))).text).toContain('/rpg demo again stops it')
+  await clock.advance(800)
+  expect(rowText(blits.at(-1)!, WIDE, 0)).toContain('☐ 1/3 fix the login form')
+  const seen = new Set<string>()
+  for (let ms = 0; ms < 36_000; ms += 160) {
+    await clock.advance(160)
+    seen.add(rowText(blits.at(-1)!, WIDE, 2))
+    seen.add(rowText(blits.at(-1)!, WIDE, 0))
+  }
+  const all = [...seen].join(' | ')
+  for (const words of ['CLAW STRIKE', 'COUNTER', 'ALL-OUT ATTACK', 'ARCANE BOLT', '★ BOSS · TREANT', 'Treant Heartwood']) expect(all).toContain(words)
+  expect(store.get('progress')).toBeUndefined()
+  expect((await $.command.run(typed('demo'))).text).toContain('stopped')
+  await clock.advance(320)
+  expect(rowText(blits.at(-1)!, WIDE, 0)).not.toContain('☐')
+  await t.unmount()
+})
+
+test('/rpg demo while hidden says how to see it; anything else after /rpg toggles as before', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  fakeSession(on, [])
+  await $.classic.SessionStart({ source: 'startup' })
+  await clock.settle()
+  expect((await $.command.run(typed('whatever'))).text).toContain('hidden')
+  expect((await $.command.run(typed('demo'))).text).toContain('/rpg brings it back, then /rpg demo')
+  expect((await $.command.run(typed(''))).text).toContain('back')
 })
 
 test('a broken store never blocks the prompt', async ($, on) => {
