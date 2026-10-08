@@ -1,10 +1,10 @@
-import type { Foe, FoeKind, QuestTask, Story, Trip, Work, WorkKind } from '../../types'
+import type { Foe, FoeKind, Member, PartyClass, QuestTask, Story, Trip, Work, WorkKind, ZoneId } from '../../types'
 import { classifyCall, settleCall } from '../plumbing/work'
 import { noise } from './noise'
 import { EXP } from './progress'
 import type { Award } from './progress'
 
-export type { Foe, FoeKind, QuestTask, Story, Trip }
+export type { Foe, FoeKind, Member, PartyClass, QuestTask, Story, Trip, ZoneId }
 export type HookPayload = Record<string, unknown>
 export type Beat = 'walk' | 'idle' | 'encounter' | 'enemyTurn' | 'finisher' | 'victory' | 'flee'
 
@@ -18,7 +18,14 @@ export const FLEE_MS = 1600
 export const CALL_MS = 6000
 export const LEVEL_UP_MS = 3000
 
-export const FOREST_ROSTER: readonly FoeKind[] = ['goblin', 'shroom']
+export const ROSTERS: Record<ZoneId, readonly FoeKind[]> = {
+  forest: ['goblin', 'shroom'],
+  dungeon: ['slime', 'skeleton'],
+  neon: ['drone', 'bug'],
+}
+export const BOSSES: Record<ZoneId, FoeKind> = { forest: 'treant', dungeon: 'hydra', neon: 'mech' }
+export const BOSS_HP = 6
+const ZONES = Object.keys(ROSTERS) as ZoneId[]
 
 export const SKILLS: Partial<Record<WorkKind, string>> = {
   edit: 'CLAW STRIKE',
@@ -27,12 +34,34 @@ export const SKILLS: Partial<Record<WorkKind, string>> = {
   install: 'SHELL SHOCK',
   mcp: 'LINK BEAM',
 }
+export const CLASS_SKILLS: Record<PartyClass, string> = { knight: 'SHIELD BASH', mage: 'ARCANE BOLT', scout: 'QUICK SHOT' }
 
-const TROPHY: Record<FoeKind, string> = { goblin: 'Goblin Fang', shroom: 'Glow Cap' }
+const CLASSES: Readonly<Record<string, PartyClass>> = { Explore: 'scout', Plan: 'mage', 'general-purpose': 'knight' }
+const ANY_CLASS = ['knight', 'mage', 'scout'] as const
+
+// Any other agent type gets a class of its own, the same one every time.
+export function classOf(agentType: string): PartyClass {
+  const known = CLASSES[agentType]
+  if (known) return known
+  return ANY_CLASS[[...agentType].reduce((h, ch) => (h * 31 + ch.codePointAt(0)!) % 1_000_003, 7) % ANY_CLASS.length]!
+}
+
+const TROPHY: Record<FoeKind, string> = {
+  goblin: 'Goblin Fang',
+  shroom: 'Glow Cap',
+  slime: 'Slime Jelly',
+  skeleton: 'Old Bone',
+  drone: 'Drone Rotor',
+  bug: 'Glitch Shard',
+  treant: 'Treant Heartwood',
+  hydra: 'Hydra Scale',
+  mech: 'Mech Core',
+}
+const FOUND: Record<ZoneId, string> = { forest: 'Forest Herb', dungeon: 'Torch Stub', neon: 'Neon Token' }
 const LOOT_WORDS = ['Blade', 'Tome', 'Charm', 'Sigil'] as const
 
 export const NO_STORY: Story = {
-  turn: { active: false, at: 0, files: {}, gained: 0, foes: 0, recent: [] },
+  turn: { active: false, at: 0, files: {}, gained: 0, foes: 0, recent: [], boss: false, bossDown: null },
   foe: null,
   skill: null,
   down: null,
@@ -45,43 +74,62 @@ export const NO_STORY: Story = {
   trip: null,
   trail: null,
   tasks: [],
+  zone: 'forest',
+  gate: null,
+  party: [],
 }
 
 const str = (value: unknown) => (typeof value === 'string' ? value : '')
 const base = (path: string) => path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path
+const zoneOf = (value: unknown): ZoneId => (ZONES.includes(value as ZoneId) ? (value as ZoneId) : 'forest')
 
 function spawn(s: Story, now: number): Foe {
+  const zone = s.zone ?? 'forest'
+  if (s.turn.boss && !s.turn.bossDown) return { kind: BOSSES[zone], hp: BOSS_HP, maxHp: BOSS_HP, elite: false, at: now, hitAt: 0, boss: true }
+  const roster = ROSTERS[zone]
   const seed = s.turn.at / 997 + s.turn.foes * 7.3
-  const kind = FOREST_ROSTER[Math.floor(noise(seed) * FOREST_ROSTER.length)]!
+  const kind = roster[Math.floor(noise(seed) * roster.length)]!
   const maxHp = 2 + Math.floor(noise(seed + 1) * 3)
   return { kind, hp: maxHp, maxHp, elite: false, at: now, hitAt: 0 }
 }
 
 // The file edited most this turn names the loot; a turn without edits keeps a trophy from the fight.
-export function lootName(files: Record<string, number>, lastFoe: FoeKind | null): string {
+export function lootName(files: Record<string, number>, lastFoe: FoeKind | null, zone: ZoneId = 'forest'): string {
   const top = Object.entries(files).sort((a, b) => b[1] - a[1])[0]?.[0]
-  if (!top) return lastFoe ? TROPHY[lastFoe] : 'Forest Herb'
+  if (!top) return lastFoe ? TROPHY[lastFoe] : FOUND[zone]
   const word = LOOT_WORDS[[...top].reduce((n, ch) => n + ch.codePointAt(0)!, 0) % LOOT_WORDS.length]!
   return `${word} of ${top}`
 }
 
 function defeat(s: Story, foe: Foe, now: number, finisher: boolean, awards: Award[]): Story {
+  const down = { kind: foe.kind, at: now, finisher }
+  if (foe.boss) {
+    awards.push({ kind: 'raid', foe: foe.kind, boss: true })
+    return { ...s, foe: null, down, turn: { ...s.turn, gained: s.turn.gained + EXP.raid, bossDown: foe.kind } }
+  }
   const kind = foe.elite ? 'elite' : 'battle'
   awards.push({ kind, foe: foe.kind })
-  return { ...s, foe: null, down: { kind: foe.kind, at: now, finisher }, turn: { ...s.turn, gained: s.turn.gained + EXP[kind] } }
+  return { ...s, foe: null, down, turn: { ...s.turn, gained: s.turn.gained + EXP[kind] } }
 }
 
-function attack(s: Story, work: Work, path: string, now: number, awards: Award[]): Story {
-  const name = SKILLS[work.kind]
-  if (!name) return s
-  const files = path && (work.kind === 'edit' || work.kind === 'write') ? { ...s.turn.files, [base(path)]: (s.turn.files[base(path)] ?? 0) + 1 } : s.turn.files
+// A blow on the foe in the way, or on a fresh one if nothing stands there yet.
+function hit(s: Story, skill: NonNullable<Story['skill']>, now: number, awards: Award[]): Story {
   const fresh = s.foe === null
   const foe = s.foe ?? spawn(s, now)
-  const next: Story = { ...s, skill: { name, at: now }, turn: { ...s.turn, files, foes: s.turn.foes + (fresh ? 1 : 0) } }
+  const next: Story = { ...s, skill, turn: { ...s.turn, foes: s.turn.foes + (fresh ? 1 : 0) } }
   // An elite stands for a failing test: only a passing run finishes it.
   const hp = foe.elite ? Math.max(1, foe.hp - 1) : foe.hp - 1
   if (hp <= 0) return defeat(next, foe, now, false, awards)
   return { ...next, foe: { ...foe, hp, hitAt: now } }
+}
+
+// `by`: a party member made the call, so the blow is its class skill.
+function attack(s: Story, work: Work, path: string, now: number, awards: Award[], by: Member | null): Story {
+  const name = SKILLS[work.kind]
+  if (!name) return s
+  const files = path && (work.kind === 'edit' || work.kind === 'write') ? { ...s.turn.files, [base(path)]: (s.turn.files[base(path)] ?? 0) + 1 } : s.turn.files
+  const skill = by ? { name: CLASS_SKILLS[by.cls], at: now, party: true as const, by: by.id } : { name, at: now }
+  return hit({ ...s, turn: { ...s.turn, files } }, skill, now, awards)
 }
 
 function settle(s: Story, payload: HookPayload, failed: boolean, now: number, awards: Award[]): Story {
@@ -112,13 +160,19 @@ function endTurn(s: Story, reason: string, now: number, awards: Award[]): Story 
   let won = ended
   if (won.foe && !won.foe.elite) won = defeat(won, won.foe, now, false, awards)
   else if (won.foe) won = { ...won, foe: null, fled: { kind: won.foe.kind, at: now } }
+  // A turn the party fought in is a raid.
+  if ((s.party ?? []).length > 0) {
+    awards.push({ kind: 'raid' })
+    won = { ...won, turn: { ...won.turn, gained: won.turn.gained + EXP.raid } }
+  }
   awards.push({ kind: 'turn' })
   const gained = won.turn.gained + EXP.turn
-  return { ...won, turn: { ...won.turn, gained }, victory: { at: now, loot: lootName(won.turn.files, won.down?.kind ?? null), gained } }
+  const loot = won.turn.bossDown ? TROPHY[won.turn.bossDown] : lootName(won.turn.files, won.down?.kind ?? null, s.zone ?? 'forest')
+  return { ...won, turn: { ...won.turn, gained }, victory: { at: now, loot, gained } }
 }
 
 const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
-const restFrom = (roadAt: unknown, now: number): Trip => ({ origin: num(roadAt), at: now, compactAt: null, leftAt: null })
+const restFrom = (roadAt: unknown, now: number, zone: ZoneId): Trip => ({ origin: num(roadAt), at: now, compactAt: null, leftAt: null, zone })
 
 const taskStatus = (value: unknown): QuestTask['status'] => (value === 'completed' || value === 'in_progress' ? value : 'pending')
 
@@ -142,14 +196,26 @@ function completed(tasks: QuestTask[], id: string, subject: string): QuestTask[]
   return tasks.map(task => (task.id === id ? { ...task, status: 'completed' } : task))
 }
 
+// A subagent seen for the first time by one of its calls joins as it would have at its start.
+function joined(s: Story, id: string, agentType: string, now: number): { story: Story; member: Member } {
+  const party = s.party ?? []
+  const member = party.find(m => m.id === id)
+  if (member) return { story: s, member }
+  const fresh: Member = { id, cls: classOf(agentType), at: now, doneAt: null }
+  return { story: { ...s, party: [...party, fresh] }, member: fresh }
+}
+
 // Session events in, the story out, plus the deeds that earn EXP.
 export function step(s: Story, event: string, payload: HookPayload, now: number): { story: Story; awards: Award[] } {
   const awards: Award[] = []
   const story = ((): Story => {
     switch (event) {
       // A compaction happens mid-turn: the fight goes on through it.
-      case 'SessionStart':
-        return payload.source === 'compact' ? s : { ...NO_STORY, trip: restFrom(payload.roadAt, now) }
+      case 'SessionStart': {
+        if (payload.source === 'compact') return s
+        const zone = zoneOf(payload.zone)
+        return { ...NO_STORY, zone, trip: restFrom(payload.roadAt, now, zone) }
+      }
       case 'UserPromptSubmit':
         return {
           ...NO_STORY,
@@ -157,17 +223,25 @@ export function step(s: Story, event: string, payload: HookPayload, now: number)
           tasks: s.tasks,
           trip: s.trip && { ...s.trip, leftAt: s.trip.leftAt ?? now },
           trail: s.trail,
-          turn: { active: true, at: now, files: {}, gained: 0, foes: 0, recent: [] },
+          zone: s.zone ?? 'forest',
+          gate: s.gate ?? null,
+          turn: { active: true, at: now, files: {}, gained: 0, foes: 0, recent: [], boss: payload.boss === true, bossDown: null },
         }
       case 'PreToolUse': {
         // Background work after the turn has ended has no turn to close its fight.
         if (!s.turn.active) return s
         const input = typeof payload.tool_input === 'object' && payload.tool_input !== null ? (payload.tool_input as HookPayload) : {}
         const id = str(payload.tool_use_id)
-        const work = classifyCall(str(payload.tool_name), input, id, now)
+        const tool = str(payload.tool_name)
+        const work = classifyCall(tool, input, id, now)
         const recent = [...(s.turn.recent ?? []), now].slice(-3)
-        const opened = { ...s, calls: { ...s.calls, [id]: work }, tasks: plan(s.tasks, str(payload.tool_name), input), turn: { ...s.turn, recent } }
-        return attack(opened, work, str(input.file_path) || str(input.notebook_path), now, awards)
+        const agent = str(payload.agent_id)
+        // A subagent's own todo list isn't the quest.
+        const opened: Story = { ...s, calls: { ...s.calls, [id]: work }, tasks: agent ? s.tasks : plan(s.tasks, tool, input), turn: { ...s.turn, recent } }
+        const path = str(input.file_path) || str(input.notebook_path)
+        if (!agent) return attack(opened, work, path, now, awards, null)
+        const { story: withMember, member } = joined(opened, agent, str(payload.agent_type), now)
+        return attack(withMember, work, path, now, awards, member)
       }
       case 'PostToolUse':
         return settle(s, payload, false, now, awards)
@@ -175,7 +249,7 @@ export function step(s: Story, event: string, payload: HookPayload, now: number)
         return settle(s, payload, true, now, awards)
       case 'TurnEnded': {
         const ended = endTurn(s, str(payload.reason), now, awards)
-        return ended === s ? s : { ...ended, trip: restFrom(payload.roadAt, now), trail: s.trip }
+        return ended === s ? s : { ...ended, trip: restFrom(payload.roadAt, now, s.zone ?? 'forest'), trail: s.trip }
       }
       // A compaction between turns sends him to the inn; one mid-turn leaves the fight be.
       case 'Compact':
@@ -184,6 +258,19 @@ export function step(s: Story, event: string, payload: HookPayload, now: number)
         return { ...s, tasks: created(s.tasks, str(payload.task_id), str(payload.task_subject)) }
       case 'TaskCompleted':
         return { ...s, tasks: completed(s.tasks, str(payload.task_id), str(payload.task_subject)) }
+      case 'SubagentStart': {
+        const id = str(payload.agent_id)
+        if (!s.turn.active || !id) return s
+        return joined(s, id, str(payload.agent_type), now).story
+      }
+      // Its work done, the member's class attack lands.
+      case 'SubagentStop': {
+        const id = str(payload.agent_id)
+        const member = (s.party ?? []).find(m => m.id === id)
+        if (!s.turn.active || !member || member.doneAt !== null) return s
+        const party = s.party.map(m => (m.id === id ? { ...m, doneAt: now } : m))
+        return hit({ ...s, party }, { name: CLASS_SKILLS[member.cls], at: now, party: true, by: id }, now, awards)
+      }
       case 'Notification':
       case 'Elicitation':
         return { ...s, calledAt: now }
@@ -192,6 +279,11 @@ export function step(s: Story, event: string, payload: HookPayload, now: number)
     }
   })()
   return { story, awards }
+}
+
+// The road past `x` is the zone `to`; a trip not yet left rests at that zone's spots.
+export function passGate(s: Story, to: ZoneId, x: number): Story {
+  return { ...s, zone: to, gate: { x, from: s.zone ?? 'forest' }, trip: s.trip && s.trip.leftAt === null ? { ...s.trip, zone: to } : s.trip }
 }
 
 // `☐ 2/5 fix login`: the task list as a quest, led by the task in progress, or the next one up.

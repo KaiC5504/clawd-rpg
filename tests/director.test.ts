@@ -1,14 +1,18 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import {
+  BOSS_HP,
   COUNTER_MS,
   DOWN_MS,
   FINISHER_MS,
   FLEE_MS,
   NO_STORY,
+  ROSTERS,
   VICTORY_MS,
   beatOf,
+  classOf,
   lootName,
+  passGate,
   questOf,
   step,
   withLevelUp,
@@ -174,7 +178,7 @@ const ended = (roadAt: number, reason = 'answer'): [string, HookPayload] => ['Tu
 describe('resting between turns', () => {
   test('a finished turn starts a trip from where he stopped on the road', () => {
     const { story, at } = play([prompt, edit(), ended(340)])
-    expect(story.trip).toEqual({ origin: 340, at, compactAt: null, leftAt: null })
+    expect(story.trip).toEqual({ origin: 340, at, compactAt: null, leftAt: null, zone: 'forest' })
   })
 
   test('an interrupted turn sends him resting too', () => {
@@ -182,7 +186,7 @@ describe('resting between turns', () => {
   })
 
   test('a new session starts him resting where the road left off', () => {
-    expect(step(NO_STORY, 'SessionStart', { source: 'startup', roadAt: 90 }, T0).story.trip).toEqual({ origin: 90, at: T0, compactAt: null, leftAt: null })
+    expect(step(NO_STORY, 'SessionStart', { source: 'startup', roadAt: 90 }, T0).story.trip).toEqual({ origin: 90, at: T0, compactAt: null, leftAt: null, zone: 'forest' })
   })
 
   test('a prompt calls him back: the trip is left, and kept for the road behind him', () => {
@@ -254,5 +258,138 @@ describe('pace', () => {
     const { story, at } = play([prompt, edit(), edit(), edit(), edit()])
     expect(story.turn.recent).toEqual([at - 2000, at - 1000, at])
     expect(step(story, 'UserPromptSubmit', {}, at + 1).story.turn.recent).toEqual([])
+  })
+})
+
+const bossPrompt = (zone = 'forest'): [string, HookPayload] => ['UserPromptSubmit', { prompt: 'go', zone, boss: true }]
+const inZone = (zone: string): [string, HookPayload] => ['UserPromptSubmit', { prompt: 'go', zone }]
+
+describe('zones', () => {
+  test('each zone sends its own foes', () => {
+    const kinds = (zone: string) =>
+      new Set(Array.from({ length: 12 }, (_, i) => play([['SessionStart', { source: 'startup', zone }], inZone(zone), ...Array.from({ length: i }, () => pre('Read', {})), edit()]).story.foe?.kind))
+    expect([...kinds('forest')].every(k => ROSTERS.forest.includes(k!))).toBe(true)
+    expect([...kinds('dungeon')].every(k => ['slime', 'skeleton'].includes(k!))).toBe(true)
+    expect([...kinds('neon')].every(k => ['drone', 'bug'].includes(k!))).toBe(true)
+  })
+
+  test('a new session starts in the zone his progress is in; the trip there rests at its own spot', () => {
+    const { story } = play([['SessionStart', { source: 'startup', zone: 'neon', roadAt: 40 }]])
+    expect(story.zone).toBe('neon')
+    expect(story.trip?.zone).toBe('neon')
+    expect(story.gate).toBeNull()
+  })
+
+  test('a story saved before zones existed is in the forest', () => {
+    const { zone: _zone, gate: _gate, party: _party, ...old } = NO_STORY
+    const { story } = play([prompt, edit()], { ...NO_STORY, ...(old as Story) })
+    expect(story.zone).toBe('forest')
+    expect(['goblin', 'shroom']).toContain(story.foe?.kind)
+  })
+
+  test("a gate stands on the road where he crosses into the next zone, and the trip's spots are the new zone's", () => {
+    const { story } = play([prompt, ended(500)])
+    const crossed = passGate(story, 'dungeon', 566)
+    expect(crossed.zone).toBe('dungeon')
+    expect(crossed.gate).toEqual({ x: 566, from: 'forest' })
+    expect(crossed.trip?.zone).toBe('dungeon')
+  })
+
+  test('the zone and its gate outlast a prompt', () => {
+    const crossed = passGate(play([prompt, ended(500)]).story, 'neon', 566)
+    const { story } = play([inZone('neon'), edit()], crossed)
+    expect(story.zone).toBe('neon')
+    expect(story.gate).toEqual({ x: 566, from: 'forest' })
+    expect(['drone', 'bug']).toContain(story.foe?.kind)
+  })
+})
+
+describe('bosses', () => {
+  test("on a boss turn the first foe is the zone's boss, with six hit points", () => {
+    for (const [zone, boss] of [['forest', 'treant'], ['dungeon', 'hydra'], ['neon', 'mech']] as const) {
+      const { story } = play([['SessionStart', { source: 'startup', zone }], bossPrompt(zone), edit()])
+      expect(story.foe).toMatchObject({ kind: boss, boss: true, maxHp: BOSS_HP, hp: BOSS_HP - 1 })
+    }
+  })
+
+  test('six blows bring it down: a raid that clears the zone, and the foes after it are ordinary', () => {
+    const { story, awards } = play([bossPrompt(), ...Array.from({ length: 6 }, () => edit()), edit()])
+    expect(awards).toContainEqual({ kind: 'raid', foe: 'treant', boss: true })
+    expect(story.turn.bossDown).toBe('treant')
+    expect(['goblin', 'shroom']).toContain(story.foe?.kind)
+  })
+
+  test("a passing run finishes the boss, and the victory's loot is the boss's", () => {
+    const { story, awards } = play([bossPrompt(), edit(), tests(), testsFailed(2), edit(), tests(), testsPassed(), done])
+    expect(awards).toContainEqual({ kind: 'raid', foe: 'treant', boss: true })
+    expect(story.victory?.loot).toBe('Treant Heartwood')
+  })
+
+  test('the boss still standing when the turn is done falls too', () => {
+    const { awards } = play([['SessionStart', { source: 'startup', zone: 'dungeon' }], bossPrompt('dungeon'), edit(), done])
+    expect(awards).toContainEqual({ kind: 'raid', foe: 'hydra', boss: true })
+  })
+
+  test('an interrupt lets the boss flee, and the next boss prompt brings it back', () => {
+    const first = play([bossPrompt(), edit(), ['TurnEnded', { reason: 'aborted' }]])
+    expect(first.awards).toEqual([])
+    expect(first.story.fled?.kind).toBe('treant')
+    expect(play([bossPrompt(), edit()], first.story).story.foe?.kind).toBe('treant')
+  })
+
+  test('not a boss turn: no boss', () => {
+    expect(play([prompt, ...Array.from({ length: 8 }, () => edit())]).awards.some(a => a.boss)).toBe(false)
+  })
+})
+
+const joins = (agent_id: string, agent_type: string): [string, HookPayload] => ['SubagentStart', { agent_id, agent_type }]
+const leaves = (agent_id: string, agent_type = 'general-purpose'): [string, HookPayload] => ['SubagentStop', { agent_id, agent_type }]
+const theirs = (agent_id: string, tool_name: string, tool_input: HookPayload) =>
+  ['PreToolUse', { tool_name, tool_input, tool_use_id: `t${++ids}`, agent_id, agent_type: 'Explore' }] as [string, HookPayload]
+
+describe('the party', () => {
+  test('subagents join as mini Clawds with a class from their job', () => {
+    const { story } = play([prompt, joins('a1', 'Explore'), joins('a2', 'Plan'), joins('a3', 'general-purpose'), joins('a4', 'code-reviewer')])
+    expect(story.party.map(m => m.cls).slice(0, 3)).toEqual(['scout', 'mage', 'knight'])
+    expect(['knight', 'mage', 'scout']).toContain(story.party[3]!.cls)
+    expect(classOf('code-reviewer')).toBe(classOf('code-reviewer'))
+  })
+
+  test('joining twice is joining once', () => {
+    expect(play([prompt, joins('a1', 'Explore'), joins('a1', 'Explore')]).story.party).toHaveLength(1)
+  })
+
+  test('a subagent finishing lands its class attack on the foe', () => {
+    const { story, at } = play([prompt, edit(), joins('a1', 'Plan'), leaves('a1', 'Plan')])
+    expect(story.skill).toEqual({ name: 'ARCANE BOLT', at, party: true, by: 'a1' })
+    expect(story.party[0]!.doneAt).toBe(at)
+  })
+
+  test("a subagent's edit is its own attack, not Clawd's", () => {
+    const { story, at } = play([prompt, joins('a1', 'Explore'), theirs('a1', 'Edit', { file_path: 'D:/a/x.ts' })])
+    expect(story.skill).toEqual({ name: 'QUICK SHOT', at, party: true, by: 'a1' })
+    expect(story.foe).not.toBeNull()
+  })
+
+  test("a subagent's reads and plans don't fight or replace the quest", () => {
+    const before = play([prompt, ['TaskCreated', { task_id: '1', task_subject: 'mine' }], joins('a1', 'Explore')])
+    const { story } = play([theirs('a1', 'Read', { file_path: 'a.ts' }), theirs('a1', 'TodoWrite', { todos: [{ content: 'theirs', status: 'in_progress' }] })], before.story)
+    expect(story.foe).toBeNull()
+    expect(story.tasks.map(t => t.subject)).toEqual(['mine'])
+  })
+
+  test('a subagent that outlives the turn changes nothing when it stops', () => {
+    const { story } = play([prompt, joins('a1', 'Explore'), done])
+    const later = step(story, 'SubagentStop', { agent_id: 'a1', agent_type: 'Explore' }, T0 + 99_000).story
+    expect(later.foe).toBeNull()
+    expect(later.skill).toEqual(story.skill)
+    expect(step(story, 'SubagentStart', { agent_id: 'a9', agent_type: 'Explore' }, T0 + 99_000).story.party).toEqual(story.party)
+  })
+
+  test('a turn with a party is a raid; the next prompt starts with no party', () => {
+    const { story, awards } = play([prompt, joins('a1', 'Explore'), done])
+    expect(awards).toEqual([{ kind: 'raid' }, { kind: 'turn' }])
+    expect(story.victory?.gained).toBe(65)
+    expect(play([prompt], story).story.party).toEqual([])
   })
 })

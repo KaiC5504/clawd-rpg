@@ -25,21 +25,30 @@ export type FoeKind = 'goblin' | 'shroom' | 'slime' | 'skeleton' | 'drone' | 'bu
 // `at` is when it dropped in; `hitAt` the last blow it took. `boss`: the zone's boss, on a boss turn.
 export type Foe = { kind: FoeKind; hp: number; maxHp: number; elite: boolean; at: number; hitAt: number; boss?: true }
 
-export type RestKind = 'pier' | 'camp' | 'inn'
+export type RestKind = 'pier' | 'camp' | 'crystal' | 'ramen' | 'inn'
+
+export type ZoneId = 'forest' | 'dungeon' | 'neon'
 
 // A trip to the rest spots, which stand one band apart past `origin` (road pixels, where he stopped).
 // `at`: when he went idle; `compactAt`: a compaction that sends him on to the inn; `leftAt`: the
-// prompt that called him back.
-export type Trip = { origin: number; at: number; compactAt: number | null; leftAt: number | null }
+// prompt that called him back; `zone`: the zone it's in, whose rest spot is its middle stop.
+export type Trip = { origin: number; at: number; compactAt: number | null; leftAt: number | null; zone?: ZoneId }
+
+export type PartyClass = 'knight' | 'mage' | 'scout'
+
+// A subagent fighting beside him: `id` is its agent_id, `doneAt` when it stopped.
+export type Member = { id: string; cls: PartyClass; at: number; doneAt: number | null }
 
 export type QuestTask = { id: string; subject: string; status: 'pending' | 'in_progress' | 'completed' }
 
 // The battle on the band, moved on by session events (hooks/rpg/director.ts). Times are clock ms.
 export type Story = {
   // `recent`: when the turn's last three tool calls started, which sets his pace.
-  turn: { active: boolean; at: number; files: Record<string, number>; gained: number; foes: number; recent: number[] }
+  // `boss`: the zone's boss waits this turn; `bossDown`: the boss that fell this turn.
+  turn: { active: boolean; at: number; files: Record<string, number>; gained: number; foes: number; recent: number[]; boss?: boolean; bossDown?: FoeKind | null }
   foe: Foe | null
-  skill: { name: string; at: number } | null
+  // `by`: the party member whose skill it is, when it isn't his.
+  skill: { name: string; at: number; party?: true; by?: string } | null
   down: { kind: FoeKind; at: number; finisher: boolean } | null
   counter: { n: number; at: number } | null
   victory: { at: number; loot: string; gained: number } | null
@@ -52,6 +61,10 @@ export type Story = {
   trip: Trip | null
   trail: Trip | null
   tasks: QuestTask[]
+  // The zone he walks, and the gate he last crossed (road pixel `x`), with the zone behind it.
+  zone: ZoneId
+  gate: { x: number; from: ZoneId } | null
+  party: Member[]
 }
 
 declare module 'claude-code' {

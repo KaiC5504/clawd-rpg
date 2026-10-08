@@ -1,4 +1,7 @@
-export type ZoneId = 'forest' | 'dungeon' | 'neon'
+import type { ZoneId } from '../../types'
+
+export type { ZoneId }
+
 export type AwardKind = 'battle' | 'elite' | 'raid' | 'turn'
 // `boss`: the raid was the zone's boss, which clears the zone.
 export type Award = { kind: AwardKind; foe?: string; boss?: true }
