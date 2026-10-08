@@ -1,0 +1,1931 @@
+<title>Clawd RPG Sketchbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;700&display=swap">
+<style>
+/* Layout: one long column of terminal windows, each playing a 5-row band; a sticky session timeline drives all of them at once. */
+:root {
+  color-scheme: dark;
+  --bg: #100e0d;
+  --panel: #181513;
+  --term: #1c1b1a;
+  --edge: #2e2825;
+  --fg: #efe8e1;
+  --muted: #a39890;
+  --faint: #6f6560;
+  --accent: #de886d;
+  --good: #9be38a;
+  --bad: #ff7a6b;
+  --gold: #ffd54f;
+  --display: 'Pixelify Sans', 'JetBrains Mono', ui-monospace, monospace;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 40px; --s7: 64px;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: max(16px, 3vw); padding-block: var(--s6) var(--s7); display: grid; gap: var(--s6); }
+
+.hero { display: grid; gap: var(--s4); max-width: 760px; }
+.eyebrow { margin: 0; font: 600 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 0; font: 700 clamp(36px, 6vw, 64px)/1 var(--display); letter-spacing: .01em; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--accent); }
+.lede { margin: 0; color: var(--muted); max-width: 65ch; }
+.facts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2); }
+.facts li { font: 12px/1 var(--mono); color: var(--muted); border: 1px solid var(--edge); border-radius: 3px; padding: 7px 9px; }
+
+.dock { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-block: 1px solid var(--edge); padding-block: var(--s3); display: grid; gap: var(--s2); }
+.dock-row { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.play { font: 600 13px/1 var(--mono); color: var(--bg); background: var(--accent); border: 0; border-radius: 3px; padding: 9px 14px; cursor: pointer; min-width: 84px; }
+.play:focus-visible, .chip:focus-visible, .copy:focus-visible, .pick input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.chips { display: flex; gap: 4px; overflow-x: auto; min-width: 0; flex: 1; scrollbar-width: thin; padding-bottom: 2px; }
+.chip { position: relative; flex: 0 0 auto; font: 12px/1 var(--mono); color: var(--muted); background: var(--panel); border: 1px solid var(--edge); border-radius: 3px; padding: 8px 10px 10px; cursor: pointer; overflow: hidden; }
+.chip[data-tone="bad"] { color: var(--bad); }
+.chip[data-tone="good"] { color: var(--good); }
+.chip.on { color: var(--fg); border-color: var(--accent); }
+.chip i { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); }
+.picks { font: 12px/1.4 var(--mono); color: var(--muted); display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
+.picks b { color: var(--gold); font-weight: 600; }
+.copy { font: 12px/1 var(--mono); color: var(--fg); background: transparent; border: 1px solid var(--edge); border-radius: 3px; padding: 6px 9px; cursor: pointer; }
+.speed { display: flex; align-items: center; gap: 4px; font: 12px/1 var(--mono); color: var(--muted); margin-left: auto; }
+.speed button { font: 12px/1 var(--mono); color: var(--muted); background: var(--panel); border: 1px solid var(--edge); border-radius: 3px; padding: 6px 8px; cursor: pointer; }
+.speed button.on { color: var(--fg); border-color: var(--accent); }
+.speed button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.note { margin: 0; font: 12px/1.4 var(--mono); color: var(--faint); }
+
+#cards { display: grid; gap: var(--s7); }
+.card { display: grid; gap: var(--s4); min-width: 0; }
+.card-head { display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap; }
+.num { font: 700 20px/1 var(--display); color: var(--accent); }
+.card h2 { margin: 0; font: 700 clamp(24px, 3.4vw, 34px)/1.05 var(--display); }
+.genre { font: 12px/1 var(--mono); color: var(--muted); letter-spacing: .04em; }
+.pick { margin-left: auto; font: 13px/1 var(--mono); color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.pick input { accent-color: var(--accent); width: 16px; height: 16px; }
+.card.picked .pick { color: var(--gold); }
+
+.term { background: var(--term); border: 1px solid var(--edge); border-radius: 10px; overflow: hidden; }
+.term-bar { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 1px solid #262422; font: 12px/1 var(--mono); color: var(--faint); }
+.term-bar i { width: 10px; height: 10px; border-radius: 50%; background: #3a3633; }
+.term-bar span { margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term-body { padding: var(--s3) clamp(10px, 2vw, 18px) var(--s3); display: grid; gap: var(--s2); }
+.tick { margin: 0; font: 13px/1.5 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.5em; }
+.tick .g { color: var(--accent); }
+.tick[data-tone="bad"] { color: var(--bad); }
+.tick[data-tone="good"] { color: var(--good); }
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 96 / 10; max-width: 100%; image-rendering: pixelated; }
+.prompt { font: 13px/1 var(--mono); color: var(--faint); border: 1px solid #34302d; border-radius: 6px; padding: 9px 10px; }
+
+.body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: var(--s5); align-items: start; }
+.pitch { margin: 0; color: var(--fg); max-width: 60ch; }
+.map { margin: 0; display: grid; gap: 6px; font-size: 14px; }
+.map div { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: var(--s3); }
+.map dt { font: 12px/1.7 var(--mono); color: var(--accent); }
+.map dd { margin: 0; color: var(--muted); }
+@media (max-width: 720px) {
+  .body { grid-template-columns: minmax(0, 1fr); }
+  .map div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+
+.mix { display: grid; gap: var(--s4); padding: var(--s5); border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); min-width: 0; }
+.mix .num { font-size: 18px; }
+.mix-grid { display: grid; gap: var(--s4); min-width: 0; }
+.mix-label { margin: 0 0 6px; font: 600 13px/1.3 var(--mono); color: var(--gold); }
+.road-chips { flex: none; }
+.width-ctl { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; font: 13px/1 var(--mono); color: var(--muted); }
+.width-ctl input { accent-color: var(--accent); width: min(260px, 60vw); }
+.width-ctl output { color: var(--gold); }
+.world canvas.road { aspect-ratio: 150 / 10; }
+.post-title { margin: var(--s3) 0 0; font: 700 20px/1.1 var(--display); }
+.post-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--s4); }
+.post { display: grid; gap: 6px; min-width: 0; }
+.post canvas { aspect-ratio: 96 / 10; border-radius: 4px; }
+.post b { font: 600 14px/1.2 var(--mono); color: var(--gold); }
+.post span { font-size: 14px; color: var(--muted); }
+.mix canvas { aspect-ratio: 150 / 10; }
+.older { margin: 0; font: 700 clamp(20px, 2.6vw, 26px)/1.1 var(--display); color: var(--muted); }
+.meta { display: grid; gap: var(--s4); }
+.meta h2 { margin: 0; font: 700 clamp(24px, 3.4vw, 34px)/1.05 var(--display); }
+.meta > p { margin: 0; color: var(--muted); max-width: 65ch; }
+.ideas { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--s4) var(--s5); }
+.ideas li { border-top: 1px solid var(--edge); padding-top: var(--s3); color: var(--muted); font-size: 15px; }
+.ideas b { display: block; color: var(--fg); font-weight: 600; margin-bottom: 2px; }
+footer { color: var(--muted); border-top: 1px solid var(--edge); padding-top: var(--s4); font-size: 15px; }
+footer code { font: 13px var(--mono); color: var(--gold); }
+@media (prefers-reduced-motion: reduce) { .chip i { transition: none; } }
+</style>
+
+<main class="wrap">
+  <header class="hero">
+    <p class="eyebrow">clawd-bar · RPG mode · rough sketches</p>
+    <h1>Pick a game for <em>Clawd</em></h1>
+    <p class="lede">Ten ideas for what RPG mode could play above the prompt. Every band below runs the same made-up Claude Code session at the same moment, so you can watch how each game reacts to a read, a failing test, subagents and the end of a turn.</p>
+    <ul class="facts">
+      <li>5 rows × 96 columns</li>
+      <li>half-block pixels, 1 × 2 per cell</li>
+      <li>the 0.3.0 Clawd, no shadow</li>
+      <li>text fills whole cells, like the real terminal</li>
+    </ul>
+  </header>
+
+  <div class="dock" id="dock">
+    <div class="dock-row">
+      <button class="play" id="play" type="button">Pause</button>
+      <div class="chips" id="chips" role="group" aria-label="Session timeline"></div>
+    </div>
+    <div class="dock-row">
+      <div class="picks" id="picks">Picks: <span id="pick-list">none yet</span></div>
+      <button class="copy" id="copy" type="button" hidden>Copy picks</button>
+      <div class="speed" role="group" aria-label="Animation speed">Speed <button type="button" data-speed="0.5" class="on">0.5×</button><button type="button" data-speed="0.75">0.75×</button><button type="button" data-speed="1">1×</button></div>
+      <p class="note" id="note"></p>
+    </div>
+  </div>
+
+  <section class="mix world" aria-labelledby="world-title">
+    <header class="card-head">
+      <span class="num">v3</span><h2 id="world-title">The world: zones and rest spots</h2>
+      <span class="genre">HUD bottom-right · he walks everywhere, nothing just cuts</span>
+    </header>
+    <p class="pitch">A day on the road, with its own timeline. Work happens in a zone; when the turn ends he walks past signposts to the pier, then the campfire, then the inn as you stay away longer. A new prompt walks him back out, a boss clears the zone, and the portal takes him to Neon City.</p>
+    <div class="chips road-chips" id="road-chips" role="group" aria-label="Road timeline"></div>
+    <label class="width-ctl" for="road-width">Terminal width <input type="range" id="road-width" min="110" max="220" step="10" value="150"> <output id="road-width-out">150 columns</output></label>
+    <div id="road-slot"></div>
+    <h3 class="post-title">Postcards from slice 1</h3>
+    <div class="post-grid" id="post-grid"></div>
+  </section>
+
+  <section class="mix" aria-labelledby="mix-title">
+    <header class="card-head">
+      <span class="num">v2</span><h2 id="mix-title">Your mix: one road</h2>
+      <span class="genre">walk from #1 · banners from #2 · mini-Clawd party from #3 · camp #10 · fishing #9</span>
+    </header>
+    <p class="pitch">The same running session at 150 columns, closer to a real terminal. Fights stop short of the HUD corner, the party is mini Clawds in his own orange, and EXP fills up to a level-up when the turn is done. Compare where the HUD sits.</p>
+    <div class="mix-grid" id="mix-grid"></div>
+    <p class="note">Watch Edit, Test ✗ and Done: enemies walk in past the HUD and stop to its left. Idle is fishing at an underground pool, the compact is a camp with HP refilling.</p>
+  </section>
+
+  <h2 class="older">The ten original sketches</h2>
+  <section id="cards" aria-label="Game sketches"></section>
+
+  <section class="meta">
+    <h2>Ideas that fit any of them</h2>
+    <p>Not animated here. These are mechanics that could sit on top of whichever game you pick.</p>
+    <ul class="ideas">
+      <li><b>HP is your context window</b>It drains as the conversation grows. A compact is a night at the inn, and HP comes back.</li>
+      <li><b>MP is the 5-hour limit</b>Big spells (subagents, long commands) cost more. Running dry makes Clawd slow and tired, like today's exhausted pose.</li>
+      <li><b>Subagents join the party</b>Each Agent call drops in a party member with a class from its job: Explore is a scout, Plan a mage, general-purpose a knight.</li>
+      <li><b>Enemies come from real errors</b>TypeError beetles, flaky-test ghosts, lint slimes, a merge-conflict hydra. A bestiary fills up across every repo.</li>
+      <li><b>Loot is named after real work</b><code>Blade of scenes.ts</code>, <code>Hydra Scale</code> from a merge conflict you solved. Rarity from test counts or diff size.</li>
+      <li><b>The CI race becomes a raid</b>Your best run is a rival party's ghost, and the build steps are dungeon floors.</li>
+      <li><b>Rotate or choose</b>Several games can take turns like today's game cabinet, or you pin one per repo.</li>
+      <li><b>Clicking the band</b>If Claude Code passes mouse clicks to the band, a click could parry or grab loot. To check in the API before we promise it.</li>
+    </ul>
+  </section>
+
+  <footer>Tell Claude the numbers you liked, for example <code>#2 and #5, mix 1 with 3</code>, or press <b>Copy picks</b> above and paste it back. These are rough sketches to choose a direction, not the final art.</footer>
+</main>
+
+<script id="engine">
+const W = 96, H = 10, S = 16, TERM = '#1c1b1a', TICK = 80
+
+const EVENTS = [
+  { key: 'think', ms: 2600, label: 'Think', line: 'Thinking…', glyph: true },
+  { key: 'read', ms: 2000, label: 'Read', line: '● Read hooks/scenes.ts' },
+  { key: 'grep', ms: 2200, label: 'Grep', line: '● Grep "frameAt" · 14 matches' },
+  { key: 'edit', ms: 2600, label: 'Edit', line: '● Edit hooks/scenes.ts  +24 −6' },
+  { key: 'fail', ms: 3000, label: 'Test ✗', line: '● Bash npm test  ✗ 3 failed', tone: 'bad' },
+  { key: 'fix', ms: 2200, label: 'Fix', line: '● Edit hooks/pet-state.ts  +8 −2' },
+  { key: 'agent', ms: 3200, label: 'Subagents', line: '● Agent ×2  exploring tests/ and docs/' },
+  { key: 'pass', ms: 3000, label: 'Test ✓', line: '● Bash npm test  ✓ 41 passed', tone: 'good' },
+  { key: 'done', ms: 3200, label: 'Done', line: '✓ Turn complete · 24s', tone: 'good' },
+  { key: 'compact', ms: 3000, label: 'Compact', line: 'Compacting conversation… context 92% → 18%', glyph: true },
+  { key: 'idle', ms: 2800, label: 'Idle', line: '' },
+]
+const TOTAL = EVENTS.reduce((a, e) => a + e.ms, 0)
+const STARTS = []
+{ let a = 0; for (const e of EVENTS) { STARTS.push(a); a += e.ms } }
+const IDX = Object.fromEntries(EVENTS.map((e, i) => [e.key, i]))
+
+function stateAt(A) {
+  A = Math.max(0, Math.floor(A / TICK) * TICK)
+  const loop = Math.floor(A / TOTAL), T = A - loop * TOTAL
+  let i = EVENTS.length - 1
+  while (i > 0 && STARTS[i] > T) i--
+  const ev = EVENTS[i], k = T - STARTS[i]
+  return { A, loop, T, i, key: ev.key, ev, k, ms: ev.ms, p: k / ev.ms, F: Math.floor(A / TICK) }
+}
+
+function travel(s, speeds) {
+  let per = 0
+  for (const e of EVENTS) per += (speeds[e.key] || 0) * e.ms / 1000
+  let d = 0
+  for (let j = 0; j < s.i; j++) d += (speeds[EVENTS[j].key] || 0) * EVENTS[j].ms / 1000
+  return d + (speeds[s.key] || 0) * s.k / 1000 + s.loop * per
+}
+const travelAtStart = (s, speeds) => travel({ ...s, k: 0 }, speeds)
+
+const mod = (a, n) => ((a % n) + n) % n
+const lerp = (a, b, t) => a + (b - a) * t
+const clamp01 = t => Math.max(0, Math.min(1, t))
+const seg = (p, a, b) => clamp01((p - a) / (b - a))
+const ease = t => 1 - Math.pow(1 - t, 3)
+const on = (A, ms) => Math.floor(A / ms) % 2 === 1
+const noise = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x) }
+const pick = (arr, A, ms) => arr[Math.floor(A / ms) % arr.length]
+function dim(hex, f = 0.5) {
+  const n = parseInt(hex.slice(1), 16)
+  const c = v => Math.round(v * f).toString(16).padStart(2, '0')
+  return '#' + c(n >> 16) + c((n >> 8) & 255) + c(n & 255)
+}
+
+// Context use over the fake session: climbs until the compact, then drops.
+function hpLeft(s) {
+  const cs = STARTS[IDX.compact]
+  const ctx = s.T < cs ? 40 + 52 * s.T / cs : s.key === 'compact' ? 92 - 74 * s.p : 18
+  return 100 - ctx
+}
+
+class Band {
+  constructor(w = W) { this.w = w; this.px = new Array(w * H).fill(null); this.tx = [] }
+  reset(bg = null) { this.px.fill(bg); this.tx.length = 0 }
+  p(x, y, c) {
+    if (x !== x || y !== y) { Band.nan++; return }
+    x = Math.round(x); y = Math.round(y)
+    if (!c || x < 0 || y < 0 || x >= this.w || y >= H) return
+    this.px[y * this.w + x] = c
+  }
+  r(x, y, w, h, c) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.p(x + i, y + j, c) }
+  s(x, y, rows, pal, keep) {
+    rows.forEach((row, j) => {
+      for (let i = 0; i < row.length; i++) {
+        const key = row[i]
+        if (key !== '.' && (!keep || keep(i, j))) this.p(x + i, y + j, pal[key])
+      }
+    })
+  }
+  line(x0, y0, x1, y1, c, every = 1) {
+    const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1)
+    for (let i = 0; i <= n; i += every) this.p(lerp(x0, x1, i / n), lerp(y0, y1, i / n), c)
+  }
+  t(col, row, str, fg, bg) { this.tx.push({ col: Math.round(col), row, str, fg, bg }) }
+  paint(ctx) {
+    ctx.fillStyle = TERM
+    ctx.fillRect(0, 0, this.w * S, H * S)
+    for (let i = 0; i < this.px.length; i++) {
+      const c = this.px[i]
+      if (!c) continue
+      ctx.fillStyle = c
+      ctx.fillRect((i % this.w) * S, Math.floor(i / this.w) * S, S, S)
+    }
+    ctx.font = `600 ${Math.round(S * 1.5)}px 'JetBrains Mono', ui-monospace, monospace`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    for (const t of this.tx) {
+      ;[...t.str].forEach((ch, i) => {
+        const col = t.col + i
+        if (col < 0 || col >= this.w || t.row < 0 || t.row > 4) return
+        ctx.fillStyle = t.bg || this.px[t.row * 2 * this.w + col] || TERM
+        ctx.fillRect(col * S, t.row * 2 * S, S, 2 * S)
+        if (ch === ' ') return
+        ctx.fillStyle = t.fg
+        ctx.fillText(ch, col * S + S / 2, t.row * 2 * S + S + 1)
+      })
+    }
+  }
+}
+Band.nan = 0
+
+// ---- Clawd, ported from clawd-bar 0.3.0's standing sprite (shadow row dropped) ----
+const ORANGE = '#de886d'
+function clawd(b, x, y, o = {}) {
+  const c = o.tint || ORANGE, k = o.eye || '#000000', dx = o.dx || 0
+  if (o.sit) {
+    const top = o.top ?? 9
+    b.r(x + 2, y + top - 6, 11, 15 - top, c)
+    b.r(x, y + 7, 2, 2, c); b.r(x + 13, y + 7, 2, 2, c)
+    b.r(x + 4, y + top - 3, 2, 1, k); b.r(x + 9, y + top - 3, 2, 1, k)
+    return
+  }
+  const top = o.top ?? 6, armL = o.armL ?? 9, armR = o.armR ?? 9
+  for (const lx of o.step ? [4, 6, 10, 12] : [3, 5, 9, 11]) b.r(x + lx, y + 7, 1, 2, c)
+  b.r(x + 2 + dx, y + top - 6, 11, 13 - top, c)
+  b.r(x + dx, y + armL - 6, 2, 2, c)
+  b.r(x + 13 + dx, y + armR - 6, 2, 2, c)
+  const face = o.face || 'eyes'
+  if (face === 'eyes') {
+    const fx = o.fx || 0, fy = o.fy || 0, fh = o.fh ?? 2
+    b.r(x + 4 + fx + dx, y + 2 + fy, 1, fh, k); b.r(x + 10 + fx + dx, y + 2 + fy, 1, fh, k)
+  } else if (face === 'shut') {
+    const sy = (o.sy ?? 9) - 6
+    b.r(x + 4 + dx, y + sy, 2, 1, k); b.r(x + 9 + dx, y + sy, 2, 1, k)
+  } else if (face === 'happy') {
+    for (const [ex, ey] of [[3, 3], [4, 2], [5, 3], [9, 3], [10, 2], [11, 3]]) b.p(x + ex + dx, y + ey + (o.hy || 0), k)
+  }
+}
+const P = {
+  stand: {}, right: { fx: 1 }, left: { fx: -1 }, blink: { fy: 1, fh: 1 }, ponder: { fx: 1, fy: -1 },
+  cheer: { armL: 8, armR: 8, face: 'happy' }, bounce: { armL: 10, armR: 10, top: 7, face: 'happy', hy: 1 },
+  slump: { armL: 10, armR: 10, face: 'shut' }, swing: { armR: 7, fx: 1, fy: 1 }, strike: { armR: 10, fx: 1, fy: 1 },
+  raise: { armR: 7, fx: 1 }, squeeze: { armL: 10, armR: 10, top: 8, fy: 1, fh: 1 },
+  sit: { sit: true, top: 9 }, sitOut: { sit: true, top: 10 }, stretch: { armL: 7, armR: 7, fy: -1 },
+  read: { armR: 10, fx: 1, fy: 1 },
+}
+const walk = (s, extra) => ({ fx: 1, step: on(s.A, 160), ...extra })
+const idleFace = s => (s.A % 2600 < 160 ? P.blink : (s.A % 5200 > 3400 && s.A % 5200 < 4400 ? P.right : P.stand))
+const hurt = s => ({ armL: 10, armR: 10, face: 'shut', dx: on(s.A, 80) ? 1 : -1 })
+const cheerLoop = s => (on(s.A, 240) ? P.bounce : P.cheer)
+const sitLoop = s => (on(s.A, 1300) ? P.sitOut : P.sit)
+const withTint = (pose, tint, eye) => ({ ...pose, tint, eye })
+
+function sword(b, x, y, mode, blade = '#d7dde8') {
+  const hilt = '#e8bd62'
+  if (mode === 'hold') { b.p(x + 15, y + 4, hilt); b.r(x + 16, y + 4, 6, 1, blade); b.p(x + 22, y + 4, '#ffffff') }
+  else if (mode === 'up') { b.p(x + 15, y + 1, hilt); b.p(x + 16, y, blade); b.p(x + 17, y - 1, blade); b.p(x + 18, y - 2, '#ffffff') }
+  else {
+    b.p(x + 15, y + 5, hilt); b.p(x + 16, y + 6, blade); b.p(x + 17, y + 7, blade); b.p(x + 18, y + 8, '#ffffff')
+    for (const [ax, ay, c] of [[19, 0, '#fff6d5'], [21, 1, '#fff6d5'], [22, 3, '#ffd54f'], [22, 5, '#ffd54f'], [21, 7, '#ff9f1c']]) b.p(x + ax, y + ay, c)
+  }
+}
+// A sword swing cycle; true on the frames where the blade lands.
+function slash(b, x, y, s, ms = 320) {
+  const up = (s.A % ms) < ms * 0.55
+  clawd(b, x, y, up ? P.swing : P.strike)
+  sword(b, x, y, up ? 'up' : 'down')
+  return !up
+}
+function hammer(b, x, y, s, ms = 300) {
+  const up = (s.A % ms) < ms * 0.6
+  if (up) { clawd(b, x, y, P.swing); b.r(x + 15, y + 2, 1, 3, '#a0714a'); b.r(x + 14, y, 4, 2, '#9aa0b2') }
+  else { clawd(b, x, y, P.strike); b.r(x + 15, y + 5, 3, 1, '#a0714a'); b.r(x + 18, y + 4, 2, 4, '#9aa0b2') }
+  return !up
+}
+function burst(b, x, y, r, colors, n = 10) {
+  if (r < 0 || r > colors.length * 1.3 + 1) return
+  const c = colors[Math.min(colors.length - 1, Math.floor(r / 1.3))]
+  for (let a = 0; a < n; a++) {
+    const ang = a / n * Math.PI * 2
+    b.p(x + Math.cos(ang) * r * 1.6, y + Math.sin(ang) * r * 0.8, c)
+  }
+}
+function stars(b, seed, n, s, y0, y1, colors) {
+  for (let i = 0; i < n; i++) {
+    const x = Math.floor(noise(i * 7 + seed) * W), y = y0 + Math.floor(noise(i * 3 + seed * 5) * (y1 - y0))
+    b.p(x, y, noise(i + Math.floor(s.A / 500) * 13 + seed) > 0.25 ? colors[0] : colors[1])
+  }
+}
+function bar(b, x, y, w, frac, fill, empty = '#2a2f3a') { b.r(x, y, w, 1, empty); b.r(x, y, Math.round(w * clamp01(frac)), 1, fill) }
+const flashPal = pal => Object.fromEntries(Object.keys(pal).map(k => [k, '#ffffff']))
+function bolt(b, x0, x1, y, t, color) {
+  if (t <= 0 || t >= 1) return
+  const x = Math.round(lerp(x0, x1, t))
+  b.r(x - 2, y, 3, 1, color); b.p(x + 1, y, '#ffffff')
+}
+
+const SLIME = [["..LGL..", ".GGGGG.", "GKGGGKG", "GGGGGGG", ".GGGGG."], [".......", "..LGL..", "GKGGGKG", "GGGGGGG", "GGGGGGG"]]
+function slime(b, x, y, s, flash, color = '#7ad15a') {
+  const pal = { G: color, L: '#d8ffc4', K: '#173a12' }
+  b.s(x, y, SLIME[on(s.A, 300) ? 1 : 0], flash ? flashPal(pal) : pal)
+}
+const BIG_SLIME = ["...RRRRRR...", "..RLLRRRRR..", ".RRRRRRRRRR.", "RRWKRRRRWKRR", "RRRRRRRRRRRR", "RRRRKKKKRRRR", "RRRRRRRRRRRR", ".RRRRRRRRRR."]
+function bigSlime(b, x, y, s, flash) {
+  const pal = { R: '#d6453d', L: '#ff9f8a', W: '#ffffff', K: '#2a0a0a' }
+  b.s(x, y + (on(s.A, 300) ? 1 : 0), BIG_SLIME, flash ? flashPal(pal) : pal)
+}
+const BEETLE = [".A...A.", "..A.A..", ".YYYYY.", "YKYYYKY", ".L.L.L."]
+const BEETLE_PAL = { A: '#c8c8c8', Y: '#e3b341', K: '#000000', L: '#7a5a1a' }
+const GHOST = [".WWWW.", "WWWWWW", "WKWWKW", "WWWWWW", "WWKKWW", "WWWWWW", "W.WW.W"]
+const GHOST_PAL = { W: '#c9d1ff', K: '#1a1a40' }
+const TYPE_BUG = ["..A...A..", "...A.A...", ".RRRRRRR.", "RRYRRRYRR", "RRRRRRRRR", ".L.L.L.L."]
+const TYPE_BUG_PAL = { A: '#c8c8c8', R: '#d6453d', Y: '#ffd54f', L: '#7a2a22' }
+
+function banner(b, s, label, bg, fg = '#ffffff', until = 0.4) {
+  if (s.p > until) return
+  const x0 = Math.round(lerp(-70, 18, ease(seg(s.p, 0, 0.1))))
+  const w = label.length + 12
+  for (let y = 3; y <= 6; y++) b.r(x0 + (6 - y), y, w, 1, bg)
+  b.r(x0 + 4, 7, w - 4, 1, '#f4f4f4')
+  b.t(x0 + 7, 2, label, fg, bg)
+}
+
+const CONCEPTS = []
+
+// ---- 1. Dungeon Run ----
+CONCEPTS.push({
+  id: 1, name: 'Dungeon Run', genre: 'Side-scrolling action',
+  pitch: 'Clawd marches right through a torch-lit dungeon. Reading and searching keep him walking. Edits and failing tests put enemies in his path, and he has to cut through them.',
+  map: [['Read / Grep', 'Walks the corridor and picks up a gem for every match'], ['Edit', 'Slashes the slime in his way'], ['Test ✗', 'A big slime blocks the path and knocks him back'], ['Subagents', 'Two wisps join and pelt the slime'], ['Test ✓', 'A finisher dash across the whole band'], ['Turn done', 'A chest opens; the loot is named after the file']],
+  draw(b, s) {
+    const sp = { think: 6, read: 14, grep: 40 }
+    const off = travel(s, sp), o = Math.floor(off)
+    b.reset('#15121f')
+    for (let y = 0; y < 9; y++) for (let x = 0; x < W; x++) {
+      const row = Math.floor(y / 3), wx = x + Math.floor(off * 0.5) + (row % 2) * 4
+      if (y % 3 === 2 || mod(wx, 8) === 0) b.p(x, y, '#221c33')
+      else if (noise(Math.floor(wx / 8) * 7 + row * 13) > 0.82) b.p(x, y, '#1b1729')
+    }
+    for (let x = 0; x < W; x++) b.p(x, 9, mod(x + o, 6) < 3 ? '#3b3152' : '#322a47')
+    for (let tx = mod(-o, 30) + 4; tx < W; tx += 30) {
+      const id = Math.floor((tx + o) / 30)
+      b.p(tx - 1, 2, '#2e2131'); b.p(tx + 1, 2, '#2e2131'); b.p(tx - 1, 3, '#2a1f2c'); b.p(tx + 1, 3, '#2a1f2c')
+      b.r(tx, 4, 1, 2, '#6b5444')
+      b.p(tx, 3, pick(['#ff9f1c', '#ffb03a', '#ff8a1c'], s.A + id * 90, 160))
+      b.p(tx, 2, pick(['#ffd60a', '#fff3b0', '#ffd60a', '#ffb03a'], s.A + id * 50, 120))
+      if (noise(id + s.F) > 0.6) b.p(tx + (noise(id * 3 + s.F) > 0.5 ? 1 : -1), 1, '#ff9f1c')
+    }
+    const k = s.key, p = s.p, cy = 1
+    let cx = 10
+    if (k === 'think') {
+      clawd(b, cx, cy, walk(s, { fy: -1 }))
+      b.t(27, 1, ['·', '· ·', '· · ·'][Math.floor(s.k / 400) % 3], '#9aa0b2')
+    } else if (k === 'read') {
+      clawd(b, cx, cy, walk(s, { fy: 1, armR: 10 }))
+      b.r(cx + 15, cy + 4, 3, 3, '#e9e6df'); b.r(cx + 15, cy + 5, 3, 1, '#8a8f9c')
+    } else if (k === 'grep') {
+      const o0 = travelAtStart(s, sp)
+      let got = 0
+      for (let j = 0; j < 14; j++) {
+        const gx = Math.round(26 + j * 6 - (off - o0))
+        if (gx < cx + 13) { got++; continue }
+        const bob = on(s.A + j * 70, 240) ? 1 : 0
+        b.p(gx, 5 + bob, '#5ee0ff'); b.p(gx, 4 + bob, on(s.A + j * 110, 200) ? '#e6fbff' : '#5ee0ff')
+      }
+      clawd(b, cx, cy, walk(s))
+      b.t(86, 0, '◆' + got, '#5ee0ff')
+    } else if (k === 'edit') {
+      const sx = Math.round(lerp(98, 44, seg(p, 0, 0.3)))
+      cx = Math.round(p < 0.3 ? 10 : lerp(10, 24, seg(p, 0.3, 0.42)))
+      let hit = false
+      if (p < 0.42 || p >= 0.85) { clawd(b, cx, cy, P.right); sword(b, cx, cy, 'hold') } else hit = slash(b, cx, cy, s)
+      if (p < 0.85) slime(b, sx, 5, s, hit)
+      else burst(b, 47, 7, (s.k - 0.85 * s.ms) / 90, ['#ffffff', '#b6f09c', '#7ad15a', '#3f8a2a'])
+      if (p > 0.45 && p < 0.95) b.t(46, p < 0.65 ? 1 : 0, '-24', '#ffd54f')
+    } else if (k === 'fail') {
+      const bx = Math.round(p < 0.25 ? lerp(98, 46, seg(p, 0, 0.25)) : p < 0.38 ? lerp(46, 36, seg(p, 0.25, 0.33)) : lerp(36, 46, seg(p, 0.38, 0.55)))
+      cx = Math.round(p < 0.3 ? 24 : lerp(24, 8, seg(p, 0.3, 0.45)))
+      if (p > 0.3 && p < 0.7) clawd(b, cx, cy, hurt(s)); else { clawd(b, cx, cy, P.right); sword(b, cx, cy, 'hold') }
+      bigSlime(b, bx, 2, s, p > 0.28 && p < 0.36)
+      bar(b, bx, 0, 12, 1, '#ff4b4b', '#3a1a22')
+      if (p > 0.3) b.t(62, 0, '✗ 3 failed', '#ff6b6b')
+      if (p > 0.3 && p < 0.38) { b.r(0, 0, W, 1, '#ff4b4b'); b.r(0, 9, W, 1, '#ff4b4b') }
+    } else if (k === 'fix') {
+      cx = Math.round(lerp(8, 22, seg(p, 0, 0.2)))
+      let hit = false
+      if (p < 0.2) { clawd(b, cx, cy, walk(s)); sword(b, cx, cy, 'hold') } else hit = slash(b, cx, cy, s)
+      bigSlime(b, 46, 2, s, hit)
+      bar(b, 46, 0, 12, lerp(1, 0.6, seg(p, 0.2, 0.9)), '#ff4b4b', '#3a1a22')
+      if (p > 0.3) b.t(62, 0, '-31', '#ffd54f')
+    } else if (k === 'agent') {
+      cx = 22
+      bigSlime(b, 46, 2, s, false)
+      bar(b, 46, 0, 12, lerp(0.6, 0.2, seg(p, 0.3, 1)), '#ff4b4b', '#3a1a22')
+      clawd(b, cx, cy, P.right); sword(b, cx, cy, 'hold')
+      ;[['#7fd1ff', 0], ['#c58bff', 1]].forEach(([col, n]) => {
+        const enter = seg(p, n * 0.1, 0.3 + n * 0.1), ang = s.A / 260 + n * Math.PI
+        const wx = Math.round(lerp(-4, 15 + Math.cos(ang) * 5, enter)), wy = Math.round(lerp(0, 2 + Math.sin(ang), enter))
+        b.r(wx, wy, 2, 2, col); b.p(wx - 1, wy + 1, dim(col))
+        if (enter >= 1) {
+          const f = ((s.A + n * 150) % 300) / 300
+          b.r(Math.round(lerp(wx + 2, 50, f)), Math.round(lerp(wy + 1, 5, f)), 2, 1, col)
+        }
+      })
+      b.t(62, 0, '+2 allies', '#7fd1ff')
+    } else if (k === 'pass') {
+      cx = Math.round(lerp(22, 62, seg(p, 0.15, 0.3)))
+      if (p < 0.3) bigSlime(b, 46, 2, s, p > 0.2)
+      if (p < 0.15) { clawd(b, 22, cy, P.squeeze); sword(b, 22, cy, 'hold') }
+      else if (p < 0.3) { b.r(22, 4, cx - 8, 1, '#fff6d5'); b.r(22, 5, cx - 8, 1, '#ffd54f'); clawd(b, cx, cy, P.strike); sword(b, cx, cy, 'down') }
+      else { clawd(b, cx, cy, p < 0.6 ? P.strike : cheerLoop(s)); if (p < 0.6) sword(b, cx, cy, 'down') }
+      if (p >= 0.3 && p < 0.34) b.r(0, 0, W, H, '#fff6d5')
+      if (p >= 0.34) burst(b, 52, 5, (s.k - 0.34 * s.ms) / 70, ['#ffffff', '#ff9f8a', '#d6453d', '#7a2a22'], 14)
+      if (p > 0.4) b.t(40, 0, 'CLEAR!', '#ffd54f')
+    } else if (k === 'done') {
+      cx = 62
+      clawd(b, cx, cy, cheerLoop(s))
+      chest(b, 82, 4, p > 0.2, s)
+      if (p > 0.25) { b.t(20, 0, '◆ Blade of scenes.ts', '#ffd54f'); b.t(20, 2, '+38 EXP', '#9be38a') }
+    } else if (k === 'compact') {
+      clawd(b, 62, cy, sitLoop(s))
+      crystal(b, 44, 3, s)
+      b.t(14, 0, 'SAVE POINT', '#7fd1ff'); b.t(14, 2, 'ctx 92% → 18%', '#9aa0b2')
+    } else {
+      clawd(b, 10, cy, idleFace(s)); sword(b, 10, cy, 'hold')
+      b.t(40, 0, 'B2F', '#6b6480')
+    }
+  },
+})
+function chest(b, x, y, open, s) {
+  if (!open) {
+    b.r(x, y, 8, 2, '#a0714a'); b.r(x, y + 1, 8, 1, '#6b4a2b'); b.r(x, y + 2, 8, 4, '#8a5a2b')
+    b.r(x + 3, y + 2, 2, 1, '#e8bd62'); b.r(x, y + 5, 8, 1, '#5a3d22')
+    return
+  }
+  for (const rx of [x + 1, x + 4, x + 7]) if (on(s.A + rx * 40, 200)) b.r(rx, 0, 1, y - 1, '#fff3b0')
+  b.r(x, y - 1, 8, 1, '#a0714a'); b.r(x, y, 8, 1, '#6b4a2b')
+  b.r(x, y + 1, 8, 5, '#8a5a2b'); b.r(x + 1, y + 1, 6, 1, '#ffd54f'); b.r(x, y + 5, 8, 1, '#5a3d22')
+}
+function crystal(b, x, y, s) {
+  const c = on(s.A, 300) ? '#5ee0ff' : '#7fd1ff', bob = on(s.A, 600) ? 1 : 0
+  b.s(x, y + bob - 1, ["..C..", ".CCC.", "CCWCC", ".CCC.", "..C.."], { C: c, W: '#ffffff' })
+  if (on(s.A + 200, 400)) b.p(x - 2, y + 1, '#e6fbff')
+  if (on(s.A, 500)) b.p(x + 6, y + 3, '#e6fbff')
+}
+
+// ---- 2. Battle Stance ----
+CONCEPTS.push({
+  id: 2, name: 'Battle Stance', genre: 'Turn-based JRPG, Persona-style',
+  pitch: 'A side-view battle. Every tool call is a skill with a red banner slashing across the band, errors are the enemy\'s turn, and a green test run triggers an all-out attack.',
+  map: [['Read / Grep', 'ANALYZE and GREP SIGHT: weak points and a scan beam'], ['Edit', 'CLAW STRIKE: he dashes in and hits'], ['Test ✗', 'The enemy counters and he takes the hit'], ['Subagents', 'SUMMON ×2: two allies join the line'], ['Test ✓', 'ALL-OUT ATTACK: red screen, dust cloud brawl'], ['Turn done', 'VICTORY, EXP bar fills, level up']],
+  draw(b, s) {
+    const k = s.key, p = s.p, cy = 1
+    const allOut = k === 'pass' && p >= 0.12 && p < 0.8
+    b.reset(allOut ? '#c8101e' : '#0b0a10')
+    const sh = Math.floor(s.A / (allOut ? 25 : 70))
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = mod(x + y * 2 - sh, allOut ? 12 : 16)
+      if (allOut ? v < 4 : v < 2) b.p(x, y, allOut ? '#0b0a10' : '#24090f')
+    }
+    const beetleUp = s.i < IDX.edit || (k === 'edit' && p < 0.75)
+    const ghostUp = s.i < IDX.fix || (k === 'fix' && p < 0.85)
+    const slimeUp = s.i < IDX.pass || (k === 'pass' && p < 0.12)
+    const allies = (s.i > IDX.agent && s.i <= IDX.done) || (k === 'agent' && (p > 0.4 || on(s.A, 80)))
+    let cx = 6, pose = idleFace(s), weapon = 'hold', hitBeetle = false, hitGhost = false, gx = 70, tint = null
+    let grepX = -1
+    if (k === 'edit') {
+      cx = Math.round(p < 0.35 ? 6 : p < 0.45 ? lerp(6, 40, seg(p, 0.35, 0.45)) : p < 0.7 ? 40 : lerp(40, 6, seg(p, 0.7, 0.8)))
+      if (p >= 0.45 && p < 0.7) { const up = (s.A % 240) < 130; pose = up ? P.swing : P.strike; weapon = up ? 'up' : 'down'; hitBeetle = !up }
+      else pose = P.right
+    } else if (k === 'fail') {
+      gx = Math.round(p < 0.35 ? 70 : p < 0.5 ? lerp(70, 22, seg(p, 0.35, 0.5)) : lerp(22, 70, seg(p, 0.6, 0.75)))
+      if (p > 0.45 && p < 0.75) { pose = hurt(s); weapon = null }
+    } else if (k === 'fix') {
+      cx = Math.round(p < 0.35 ? 6 : p < 0.45 ? lerp(6, 54, seg(p, 0.35, 0.45)) : p < 0.7 ? 54 : lerp(54, 6, seg(p, 0.7, 0.8)))
+      if (p >= 0.45 && p < 0.7) { const up = (s.A % 240) < 130; pose = up ? P.swing : P.strike; weapon = up ? 'up' : 'down'; hitGhost = !up }
+      else pose = P.right
+    } else if (k === 'grep' && p > 0.4) grepX = Math.round(lerp(22, 95, seg(p, 0.4, 0.9)))
+    const bob = on(s.A, 420) ? 1 : 0
+    if (beetleUp) b.s(56, 4 + bob, BEETLE, hitBeetle || Math.abs(grepX - 59) < 3 ? flashPal(BEETLE_PAL) : BEETLE_PAL)
+    if (ghostUp) {
+      const fade = k === 'fix' ? seg(p, 0.7, 0.85) : 0
+      b.s(gx, 1 + bob, GHOST, hitGhost || Math.abs(grepX - 72) < 3 ? flashPal(GHOST_PAL) : GHOST_PAL, fade ? (i, j) => noise(i * 7 + j * 13) > fade : null)
+    }
+    if (slimeUp) slime(b, 82, 5, s, Math.abs(grepX - 85) < 3, '#7ad15a')
+    if (k === 'pass' && p >= 0.12 && p < 0.8) {
+      for (let i = 0; i < 60; i++) {
+        const x = 50 + Math.floor(noise(i + s.F * 3) * 44), y = Math.floor(noise(i * 5 + s.F) * 10)
+        b.p(x, y, noise(i * 9 + s.F) > 0.5 ? '#f4f4f4' : '#0b0a10')
+      }
+      for (let i = 0; i < 4; i++) b.r(56 + Math.floor(noise(i + s.F) * 30), Math.floor(noise(i * 3 + s.F) * 8), 2, 2, ORANGE)
+      b.t(4, 2, 'ALL-OUT ATTACK!!', '#ffffff', '#0b0a10')
+    } else {
+      if (allies) {
+        const pz = k === 'done' ? cheerLoop(s) : k === 'pass' ? P.right : idleFace(s)
+        clawd(b, 22, cy, withTint(pz, '#7fb3ff')); clawd(b, 38, cy, withTint(pz, '#c58bff'))
+      }
+      if (k === 'done' || (k === 'pass' && p >= 0.8)) pose = cheerLoop(s), weapon = null
+      if (k === 'compact') { pose = sitLoop(s); weapon = null }
+      clawd(b, cx, cy, tint ? withTint(pose, tint) : pose)
+      if (weapon) sword(b, cx, cy, weapon)
+    }
+    if (k === 'pass' && p < 0.12) b.r(0, 0, W, H, '#ffffff')
+    if (grepX >= 0) b.r(grepX, 0, 1, H, '#7fd1ff')
+    if (k === 'think') b.t(24, 0, (on(s.A, 400) ? '▶' : ' ') + ' SKILL   ITEM   GUARD', '#f4f4f4')
+    else if (k === 'read') { banner(b, s, 'ANALYZE', '#e5202e'); if (p > 0.45) b.t(56, 1, 'WEAK', '#ffd54f') }
+    else if (k === 'grep') banner(b, s, 'GREP SIGHT', '#e5202e')
+    else if (k === 'edit') { banner(b, s, 'CLAW STRIKE', '#e5202e', '#ffffff', 0.35); if (p > 0.5 && p < 0.9) b.t(57, 0, '-24', '#ffd54f') }
+    else if (k === 'fail') { banner(b, s, 'COUNTER  ✗3', '#000000', '#ff4b4b', 0.35); if (p > 0.45) b.t(34, 0, '-18 HP', '#ff6b6b') }
+    else if (k === 'fix') { banner(b, s, 'PATCH SLASH', '#e5202e', '#ffffff', 0.35); if (p > 0.5 && p < 0.9) b.t(71, 0, '-31', '#ffd54f') }
+    else if (k === 'agent') banner(b, s, 'SUMMON ×2', '#2f6fd0')
+    else if (k === 'pass' && p >= 0.8) b.t(60, 1, 'FINISH!', '#ffd54f')
+    else if (k === 'done') {
+      b.t(56, 0, '★ VICTORY ★', '#ffd54f'); b.t(56, 2, p > 0.6 ? 'LEVEL UP! 8' : '+38 EXP', p > 0.6 ? '#ff4b4b' : '#f4f4f4')
+      bar(b, 56, 9, 30, seg(p, 0.1, 0.6), '#ffd54f', '#3a3a46')
+    } else if (k === 'compact') {
+      b.t(24, 0, 'HP', '#9be38a'); bar(b, 27, 0, 40, hpLeft(s) / 100, '#6bd46b')
+      b.t(24, 2, 'REST · HP +74', '#9be38a')
+    } else if (k === 'idle') b.t(24, 0, '▶ FIGHT', '#6b6480')
+  },
+})
+
+// ---- 3. Party Raid ----
+CONCEPTS.push({
+  id: 3, name: 'Party Raid', genre: 'Boss fight with a party',
+  pitch: 'One big boss per turn. Clawd chips at it alone until Claude spawns subagents; each one drops in as a party member with its own class, and the raid finishes on a green test run.',
+  map: [['Edit / Fix', 'Clawd throws claw bolts, the boss HP bar drops'], ['Test ✗', 'The hydra breathes fire across the party'], ['Subagents', 'A knight and a mage drop in; the mage casts'], ['Test ✓', 'Party combo beam, the boss crumbles'], ['Turn done', 'Loot and EXP for everyone'], ['Idle', 'Next boss waits in the dark']],
+  draw(b, s) {
+    const k = s.key, p = s.p, cy = 1
+    b.reset('#0e1418')
+    for (let x = 0; x < W; x++) b.p(x, 9, mod(x, 4) < 2 ? '#22313a' : '#1d2a32')
+    for (let px = 8; px < W; px += 22) { b.r(px, 0, 3, 9, '#141e24'); b.p(px + 1, 2, '#2a3a44') }
+    const hp = s.i < IDX.edit ? 1 : k === 'edit' ? lerp(1, 0.88, seg(p, 0.3, 0.8)) : k === 'fail' ? 0.88 : k === 'fix' ? lerp(0.88, 0.78, seg(p, 0.3, 0.8)) : k === 'agent' ? lerp(0.78, 0.5, seg(p, 0.4, 1)) : k === 'pass' ? lerp(0.5, 0, seg(p, 0.1, 0.5)) : 0
+    const bossUp = s.i < IDX.pass || (k === 'pass' && p < 0.9)
+    const flash = (k === 'edit' && ((p > 0.35 && p < 0.42) || (p > 0.75 && p < 0.82))) || (k === 'fix' && ((p > 0.35 && p < 0.42) || (p > 0.75 && p < 0.82))) || (k === 'pass' && p > 0.3 && p < 0.5 && on(s.A, 80))
+    if (bossUp) hydra(b, s, flash, k === 'pass' ? seg(p, 0.5, 0.9) : 0, false)
+    else if (k === 'idle') hydra(b, s, false, 0, true)
+    if (bossUp) { b.t(44, 0, 'HYDRA', '#c58bff'); bar(b, 51, 0, 44, hp, '#e5202e', '#3a1a22') }
+    const party = s.i >= IDX.agent && s.i <= IDX.compact
+    const drop = (a, z) => (k === 'agent' ? Math.round(lerp(-10, 1, seg(p, a, z))) : 1)
+    let pose = idleFace(s)
+    if (k === 'edit' || k === 'fix') pose = (p < 0.08 || (p > 0.42 && p < 0.5)) ? P.swing : P.right
+    if (k === 'fail' && p > 0.35 && p < 0.7) pose = hurt(s)
+    if (k === 'pass') pose = p < 0.5 ? P.raise : cheerLoop(s)
+    if (k === 'done') pose = cheerLoop(s)
+    if (k === 'compact') pose = sitLoop(s)
+    clawd(b, 4, cy, pose)
+    if (party) {
+      const pz = k === 'compact' ? sitLoop(s) : k === 'done' || (k === 'pass' && p > 0.5) ? cheerLoop(s) : P.right
+      const ky = drop(0, 0.25), my = drop(0.1, 0.35)
+      clawd(b, 20, ky, withTint(pz, '#8fa3c8'))
+      if (k !== 'compact') { b.r(35, ky + 3, 2, 4, '#c9d3e6'); b.p(35, ky + 4, '#e5202e') }
+      clawd(b, 38, my, withTint(pz, '#9b7be0'))
+      if (k !== 'compact') { b.r(53, my, 1, 9, '#8a5a2b'); b.p(53, my - 1, on(s.A, 200) ? '#ff7af0' : '#ffb3f6') }
+      if (k === 'agent' && p > 0.4) {
+        const f = ((s.k - 0.4 * s.ms) % 400) / 400
+        bolt(b, 55, 72, 2, f, '#c58bff')
+        if (p > 0.3 && p < 0.6) b.t(56, 3, 'PARTY +2', '#9be38a')
+      }
+    }
+    if (k === 'edit' || k === 'fix') {
+      bolt(b, 20, 72, 5, seg(p, 0.05, 0.35), '#ffb27a'); bolt(b, 20, 72, 5, seg(p, 0.45, 0.75), '#ffb27a')
+      if (p > 0.35) b.t(62, 3, k === 'edit' ? '-6' : '-10', '#ffd54f')
+    }
+    if (k === 'agent' && p > 0.5) bolt(b, 20, 72, 5, ((s.k - 0.5 * s.ms) % 600) / 600, '#ffb27a')
+    if (k === 'fail' && p > 0.1 && p < 0.7) {
+      const reach = Math.round(lerp(80, 6, seg(p, 0.1, 0.4)))
+      for (let x = reach; x < 73; x++) for (let y = 3; y <= 5; y++) {
+        if (noise(x * 3 + y * 7 + s.F) > 0.25) b.p(x, y + (noise(x + s.F) > 0.7 ? 1 : 0), pick(['#ff6b35', '#ffd60a', '#ff9f1c'], s.A + x * 40 + y * 90, 80))
+      }
+      if (p > 0.3) b.t(30, 0, '✗ 3 failed', '#ff6b6b')
+    }
+    if (k === 'pass' && p > 0.1 && p < 0.5) {
+      const c = on(s.A, 80) ? '#ffffff' : '#fff3b0'
+      b.r(22, 4, 50, 1, c); b.r(22, 3, 50, 1, '#ffd54f'); b.r(22, 5, 50, 1, '#ffd54f')
+    }
+    if (k === 'pass' && p > 0.6) b.t(56, 3, 'RAID CLEAR', '#ffd54f')
+    if (k === 'done') { b.t(56, 1, '◆ Hydra Scale', '#ffd54f'); b.t(56, 3, '+120 EXP', '#9be38a') }
+    if (k === 'compact') b.t(58, 2, 'camp · rest', '#7fd1ff')
+    if (k === 'read' || k === 'grep') b.t(30, 0, 'Lv.42 MERGE HYDRA', '#8a7aa8')
+  },
+})
+function hydra(b, s, flash, fall, shade) {
+  const body = shade ? '#1c1626' : flash ? '#ffffff' : '#4b2a6b'
+  const belly = shade ? '#1c1626' : flash ? '#ffffff' : '#6b3f8f'
+  const head = shade ? '#221a2e' : flash ? '#ffffff' : '#5fae6e'
+  const put = (x, y, c) => {
+    if (fall && noise(x * 7.3 + y * 3.1) < fall) return
+    b.p(x, y + (fall ? Math.floor(fall * 6 * noise(x + y * 11)) : 0), c)
+  }
+  for (let y = 5; y < 10; y++) for (let x = 72; x < 95; x++) put(x, y, y >= 7 && x > 75 && x < 90 ? belly : body)
+  for (let h = 0; h < 3; h++) {
+    const nx = 73 + h * 8, hy = 1 + (on(s.A + h * 170, 340) ? 1 : 0)
+    for (let y = hy + 3; y < 5; y++) { put(nx + 1, y, body); put(nx + 2, y, body) }
+    for (let y = hy; y < hy + 3; y++) for (let x = nx; x < nx + 4; x++) put(x, y, head)
+    if (!shade) { put(nx + 1, hy + 1, '#ffd54f'); put(nx, hy + 2, '#2a1030') }
+  }
+}
+
+// ---- 4. The Forge ----
+CONCEPTS.push({
+  id: 4, name: 'The Forge', genre: 'Crafting',
+  pitch: 'Every turn forges one weapon. Edits are hammer strikes, the blade grows with the diff, tests are the quench, and a passing run decides how rare the blade turns out.',
+  map: [['Read / Grep', 'Reads the blueprint, ore drops into the furnace'], ['Edit', 'Hammer strikes and sparks; the blade grows with lines changed'], ['Test ✗', 'The blade cracks'], ['Subagents', 'Bellows roar, the fire flares'], ['Test ✓', 'Quench steam, then the blade glows EPIC'], ['Turn done', 'The blade flies onto the rack, named after the file']],
+  draw(b, s) {
+    const k = s.key, p = s.p, cy = 1, cx = 11
+    b.reset('#120e0c')
+    for (let x = 0; x < W; x++) b.p(x, 9, mod(x, 5) === 0 ? '#211a16' : '#2a211c')
+    for (let x = 38; x < W; x += 12) b.r(x, 0, 1, 9, '#17110e')
+    const heat = k === 'agent' ? 1 : k === 'compact' ? 0.15 : k === 'idle' ? 0.3 : 0.55
+    b.r(0, 1, 10, 8, '#4a4440')
+    for (const y of [3, 6]) b.r(0, y, 10, 1, '#3a3532')
+    b.p(4, 2, '#3a3532'); b.p(7, 4, '#3a3532'); b.p(2, 7, '#3a3532')
+    b.r(2, 4, 6, 4, '#1a0e08')
+    for (let x = 2; x < 8; x++) {
+      const h = Math.round(heat * 4 * (0.5 + noise(x * 3 + s.F) * 0.6))
+      for (let j = 0; j < Math.min(4, h); j++) b.p(x, 7 - j, ['#ff6b35', '#ff9f1c', '#ffd60a', '#fff3b0'][j])
+    }
+    if (heat >= 1) for (let x = 1; x < 9; x++) if (noise(x * 5 + s.F) > 0.35) b.p(x, 0, pick(['#ff9f1c', '#ffd60a', '#ff6b35'], s.A + x * 70, 90))
+    b.p(25, 6, '#7d8696'); b.r(26, 6, 10, 1, '#7d8696'); b.r(29, 7, 5, 1, '#5a6170'); b.r(27, 8, 9, 2, '#4a505c')
+    b.r(40, 5, 6, 5, '#6b4a2b'); b.r(40, 6, 6, 1, '#3a2a1a'); b.r(40, 8, 6, 1, '#3a2a1a'); b.r(41, 5, 4, 1, '#3a7bd5')
+    b.r(70, 1, 26, 1, '#5a3d22'); b.r(70, 8, 26, 1, '#5a3d22')
+    const newIn = (k === 'done' && p > 0.3) || k === 'compact' || k === 'idle'
+    ;[73, 78, 83, 88, 93].forEach((x, i) => {
+      const c = ['#9aa3ad', '#5ea8ff', '#9aa3ad', newIn ? '#c58bff' : null, null][i]
+      if (!c) { b.p(x, 2, '#3a2a1a'); return }
+      b.r(x, 2, 1, 4, c); b.r(x - 1, 6, 3, 1, '#e8bd62'); b.p(x, 7, '#7a4b25')
+      if (i === 3 && on(s.A, 300)) b.p(x + (on(s.A, 600) ? 2 : -2), 3, '#e0b8ff')
+    })
+    let L = 3, blade = '#7a4030', crack = false
+    if (k === 'edit') L = Math.round(lerp(3, 9, p))
+    else if (s.i > IDX.edit) L = 9
+    if (k === 'edit' || k === 'fix') blade = '#ff8c3a'
+    if (k === 'fail') { blade = '#6b6f7f'; crack = true }
+    if (k === 'agent') blade = '#ff8c3a'
+    if (k === 'pass') blade = p < 0.4 ? '#9aa3ad' : on(s.A, 160) ? '#c58bff' : '#e0b8ff'
+    const onAnvil = s.i < IDX.done
+    let struck = false
+    if (k === 'edit' || (k === 'fix' && p < 0.8)) struck = hammer(b, cx, cy, s)
+    else if (k === 'read') { clawd(b, cx, cy, P.read); b.r(cx + 15, cy + 4, 3, 3, '#e9e6df'); b.r(cx + 15, cy + 5, 3, 1, '#8a8f9c') }
+    else if (k === 'fail') clawd(b, cx, cy, p > 0.3 ? P.slump : P.right)
+    else if (k === 'done' || (k === 'pass' && p > 0.5)) clawd(b, cx, cy, cheerLoop(s))
+    else if (k === 'compact') clawd(b, cx, cy, sitLoop(s))
+    else if (k === 'agent') clawd(b, cx, cy, P.left)
+    else if (k === 'think') clawd(b, cx, cy, P.ponder)
+    else clawd(b, cx, cy, idleFace(s))
+    if (onAnvil) {
+      b.p(27, 5, '#7a4b25')
+      b.r(28, 5, L, 1, struck ? '#ffd0a0' : blade)
+      if (crack) { b.p(30, 5, '#111111'); b.p(33, 5, '#111111') }
+    }
+    if (struck) for (let n = 0; n < 7; n++) {
+      const ang = Math.PI * (1.05 + n / 7 * 0.9), r = 1 + (s.A % 300 - 180) / 40 + noise(n + s.F) * 2
+      b.p(30 + Math.cos(ang) * r * 2, 5 + Math.sin(ang) * r, n % 2 ? '#ffd60a' : '#fff3b0')
+    }
+    if (k === 'pass' && p < 0.45) for (let i = 0; i < 10; i++) {
+      const y = 4 - ((s.k / 110 + i * 1.3) % 6)
+      b.p(29 + Math.floor(noise(i) * 8) + (on(s.A + i * 90, 300) ? 1 : 0), y, i % 3 ? '#c8c8c8' : '#f4f4f4')
+    }
+    if (k === 'pass' && p > 0.45) for (let n = 0; n < 3; n++) if (noise(n + s.F) > 0.4) b.p(28 + Math.floor(noise(n * 7 + s.F) * 9), 3 + (n % 2) * 4, '#f3d9ff')
+    if (k === 'fail' && p > 0.2) for (let i = 0; i < 4; i++) b.p(30 + i * 1.5, 4 - ((s.k / 150 + i) % 4), '#5a5a5a')
+    if (k === 'grep') for (let j = 0; j < 3; j++) { const y = mod(Math.floor(s.k / 90) + j * 3, 7) - 3; b.p(3 + j * 2, y, '#8a6a4a'); b.p(4 + j * 2, y, '#c58b5a') }
+    if (k === 'done' && p < 0.3) {
+      const q = seg(p, 0, 0.3)
+      b.r(Math.round(lerp(28, 84, q)), Math.round(5 - Math.sin(q * Math.PI) * 4), 5, 1, '#c58bff')
+    }
+    const texts = { think: ['next: scenes.ts', '#8a8f9c'], read: ['blueprint: scenes.ts', '#e9e6df'], grep: ['ore ×' + Math.floor(p * 14), '#ffb27a'], edit: ['+24 −6', '#9be38a'], fail: ['✗ 3 cracks', '#ff6b6b'], fix: ['+8 −2  reforged', '#9be38a'], agent: ['bellows ×2', '#ffb27a'], pass: [p > 0.45 ? 'EPIC ★★★' : 'quench…', p > 0.45 ? '#c58bff' : '#c8c8c8'], done: ['Blade of scenes.ts', '#ffd54f'], compact: ['banked for the night', '#8a8f9c'], idle: ['', ''] }
+    const [tx, tc] = texts[k]
+    if (tx) b.t(48, 0, tx, tc)
+  },
+})
+
+// ---- 5. Bug Catcher ----
+CONCEPTS.push({
+  id: 5, name: 'Bug Catcher', genre: 'Monster collecting',
+  pitch: 'Clawd wanders a meadow while Claude works. An error is a wild bug jumping out of the grass; the fix throws the trap, and the green test run decides if it stays caught. Every bug lands in a bestiary.',
+  map: [['Read / Grep / Edit', 'Walks through tall grass that rustles ahead'], ['Test ✗', 'Encounter wipe: "A wild TypeError appeared"'], ['Fix', 'He throws the trap'], ['Subagents', 'The trap wobbles… wobbles…'], ['Test ✓', 'Gotcha! Caught, added to the bestiary'], ['Compact / Idle', 'Fireflies at night, butterflies by day']],
+  draw(b, s) {
+    const k = s.key, p = s.p, cy = 1, cx = 10
+    const night = k === 'compact'
+    const sp = { think: 8, read: 12, grep: 12, edit: 12 }
+    const off = travel(s, sp), o = Math.floor(off)
+    b.reset(night ? '#0a0e1c' : '#141a33')
+    for (let x = 0; x < W; x++) for (let y = 3; y < 6; y++) b.p(x, y, night ? '#0d1424' : '#1b2444')
+    if (night) stars(b, 5, 12, s, 0, 4, ['#c8d0e8', '#4a5070'])
+    for (let x = 0; x < W; x++) {
+      const h = Math.round(2 + Math.sin((x + off * 0.3) / 9) * 1.2 + Math.sin((x + off * 0.3) / 4.3) * 0.6)
+      for (let y = 7 - h; y < 7; y++) b.p(x, y, night ? '#0f2018' : '#1d3b2c')
+    }
+    for (let x = 0; x < W; x++) for (let y = 7; y < H; y++) b.p(x, y, y === 7 ? (night ? '#25502d' : '#3f8a4d') : (night ? '#1b4022' : '#2f6b3a'))
+    for (let x = 0; x < W; x++) { const wx = x + o; if (mod(wx, 5) === 0) b.p(x + (on(s.A + wx * 37, 320) ? 1 : 0), 6, night ? '#2f6b3a' : '#4fa35e') }
+    const battle = s.i >= IDX.fail && s.i <= IDX.done && !(k === 'fail' && p < 0.18)
+    if (battle) {
+      b.r(59, 8, 17, 1, '#5aa866'); b.r(56, 9, 23, 1, '#5aa866')
+      const caught = s.i > IDX.fix || (k === 'fix' && p > 0.55)
+      if (!caught) {
+        const shrink = k === 'fix' ? seg(p, 0.4, 0.55) : 0
+        const pal = k === 'fix' && p > 0.4 && on(s.A, 80) ? flashPal(TYPE_BUG_PAL) : TYPE_BUG_PAL
+        b.s(62, 2 + (on(s.A, 300) ? 1 : 0), TYPE_BUG, pal, shrink ? (i, j) => noise(i * 5 + j * 11) > shrink : null)
+      }
+      const ball = { R: '#e5484d', W: '#f4f4f4', K: '#1a1a1a' }
+      if (k === 'fix') {
+        const q = seg(p, 0, 0.4)
+        if (q > 0 && q < 1) b.s(Math.round(lerp(26, 64, q)), Math.round(3 - Math.sin(q * Math.PI) * 4), ["RRR", "KWK", "WWW"], ball)
+        if (p > 0.4) b.s(65, 6, ["RRR", "KWK", "WWW"], ball)
+      } else if (k === 'agent' || (k === 'pass' && p < 0.6)) {
+        const wob = k === 'agent' && (s.k % 900) < 300 ? (on(s.A, 100) ? 1 : -1) : 0
+        b.s(65 + wob, 6, ["RRR", "KWK", "WWW"], ball)
+        if (k === 'pass') burst(b, 66, 7, (s.k % 600) / 80, ['#ffffff', '#ffd54f', '#ff9f1c'], 8)
+      }
+      let pose = P.right
+      if (k === 'fix') pose = p < 0.12 ? P.swing : p < 0.3 ? P.strike : P.right
+      if (k === 'pass' && p > 0.3) pose = cheerLoop(s)
+      if (k === 'done') pose = cheerLoop(s)
+      clawd(b, cx, cy, pose)
+      if (k === 'fail') b.t(30, 0, '! A wild TypeError appeared', '#ffd54f')
+      if (k === 'agent') b.t(30, 0, ['·', '· ·', '· · ·'][Math.floor(s.k / 300) % 3], '#c8c8c8')
+      if (k === 'pass' && p > 0.3) b.t(30, 0, 'Gotcha! TypeError caught', '#ffd54f')
+      if (k === 'done') { b.t(30, 0, 'BUG DEX 23/40', '#9be38a'); b.t(30, 2, 'TypeError ×12', '#ffb27a') }
+    } else if (k === 'compact') {
+      clawd(b, cx, cy, sitLoop(s)); b.t(27, 1, 'z Z', '#90a4ae')
+      for (let i = 0; i < 6; i++) if (noise(i + Math.floor(s.A / 300)) > 0.4) b.p(30 + Math.floor(noise(i * 3) * 60), 3 + Math.floor(noise(i * 5 + Math.floor(s.A / 900)) * 4), '#d4ff7a')
+    } else if (k === 'idle') {
+      clawd(b, cx, cy, idleFace(s))
+      for (let n = 0; n < 2; n++) {
+        const x = Math.round(40 + n * 22 + Math.sin(s.A / 700 + n * 2) * 10), y = Math.round(2 + Math.sin(s.A / 300 + n) * 1.5)
+        const c = n ? '#ffd54f' : '#ff9fd0'
+        b.p(x, y, c); if (on(s.A + n * 70, 150)) { b.p(x - 1, y - 1, c); b.p(x + 1, y - 1, c) } else { b.p(x - 1, y, c); b.p(x + 1, y, c) }
+      }
+    } else {
+      clawd(b, cx, cy, walk(s, k === 'think' ? { fy: -1 } : {}))
+    }
+    if (!battle || k === 'fail') {
+      for (let gx = mod(-o, 34) + 2; gx < W + 6; gx += 34) {
+        const id = Math.floor((gx + o) / 34), shake = (k === 'grep' || k === 'edit') && gx > 40 ? (on(s.A + id * 30, 80) ? 1 : -1) : 0
+        if (battle) continue
+        for (let i = 0; i < 6; i++) {
+          const h = 3 + Math.floor(noise(id * 9 + i) * 3), sw = i % 2 === 0 ? shake : 0
+          b.r(gx + i + sw, 10 - h, 1, h, i % 2 ? '#2a5a33' : '#357a42')
+        }
+      }
+    }
+    if (k === 'fail' && p < 0.18) {
+      const q = seg(p, 0, 0.16)
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (y % 2 ? x < q * W : x >= W - q * W) b.p(x, y, '#000000')
+    }
+    if (k === 'grep' || k === 'edit') b.t(70, 0, '!', on(s.A, 200) ? '#ffd54f' : '#6b6480')
+  },
+})
+
+// ---- 6. Tower Siege ----
+const SIEGE_TX = [32, 40, 48, 56]
+function siegeTurrets(T) {
+  const st = stateAt(T)
+  const key = st.key, p = st.p
+  if (st.i < IDX.edit) return 0
+  if (key === 'edit') return p > 0.8 ? 1 : 0
+  if (key === 'fail') return 1
+  if (key === 'fix') return p > 0.8 ? 2 : 1
+  if (key === 'agent') return p > 0.8 ? 4 : 2
+  return 4
+}
+CONCEPTS.push({
+  id: 6, name: 'Tower Siege', genre: 'Tower defense',
+  pitch: 'Bugs march at the repo castle. Clawd swats them by hand until edits start building turrets, and every passing test is a volley. The castle shakes on failures but never falls.',
+  map: [['Think / Read', 'Bugs trickle in; Clawd swats them himself'], ['Grep', 'Scouts the next wave: WAVE 3 · 14 bugs'], ['Edit / Fix', 'Hammers up a turret'], ['Test ✗', 'A red wave breaks through and hits the castle'], ['Subagents', 'Two turrets parachute in'], ['Test ✓ / Done', 'Wave clear, fireworks over the castle']],
+  draw(b, s) {
+    const k = s.key, p = s.p, cy = 1, cx = 14
+    const night = k === 'compact'
+    b.reset(night ? '#0b0e18' : '#151a2b')
+    if (night) stars(b, 9, 14, s, 0, 4, ['#c8d0e8', '#4a5070'])
+    for (let x = 0; x < W; x++) { const h = Math.round(2 + Math.abs(Math.sin(x / 11)) * 2); for (let y = 9 - h; y < 9; y++) b.p(x, y, night ? '#121626' : '#1d2338') }
+    for (let x = 0; x < W; x++) b.p(x, 9, '#3b4a2f')
+    const now = siegeTurrets(s.T)
+    const V = 16, GAP = 1100, failAt = STARTS[IDX.fail], fixAt = STARTS[IDX.fix], doneAt = STARTS[IDX.done]
+    const bugs = []
+    for (let j = 0; j * GAP <= s.T && j * GAP < doneAt; j++) {
+      const tj = j * GAP
+      if (tj >= failAt && tj < fixAt) continue
+      const x = 96 - (s.T - tj) / 1000 * V
+      const killX = siegeTurrets(tj + 1500) > 0 ? 64 - noise(j) * 10 : 31
+      bugs.push({ j, x, killX, dead: (killX - x) / V * 1000, red: false, castle: false })
+    }
+    if (s.T >= failAt) for (let m = 0; m < 6; m++) {
+      const tm = failAt + m * 260
+      if (tm > s.T) break
+      const x = 96 - (s.T - tm) / 1000 * 30, killX = m % 2 ? 13 : 58
+      bugs.push({ j: 100 + m, x, killX, dead: (killX - x) / 30 * 1000, red: true, castle: m % 2 === 1 })
+    }
+    const shake = bugs.some(g => g.castle && g.dead > 0 && g.dead < 300) ? (on(s.A, 60) ? 1 : -1) : 0
+    const sx = shake
+    b.r(sx, 2, 12, 7, '#5a5f73')
+    for (const x of [0, 3, 6, 9]) b.r(sx + x, 1, 2, 1, '#5a5f73')
+    b.r(sx, 4, 12, 1, '#4a4e60'); b.r(sx, 7, 12, 1, '#4a4e60')
+    b.r(sx + 4, 6, 4, 3, '#241d18')
+    b.p(sx + 6, 0, '#8a8f9c'); b.p(sx + 7, 0, ORANGE); b.p(sx + 8, on(s.A, 300) ? 0 : 1, ORANGE)
+    SIEGE_TX.forEach((tx, n) => {
+      let frac = 0
+      if (n < now) frac = 1
+      if (k === 'edit' && n === 0) frac = seg(p, 0.2, 0.8)
+      if (k === 'fix' && n === 1) frac = seg(p, 0.2, 0.8)
+      if (k === 'agent' && n >= 2) {
+        const q = seg(p, 0.05 + (n - 2) * 0.1, 0.5 + (n - 2) * 0.1)
+        if (q < 1) { const y = Math.round(lerp(-4, 6, q)); b.r(tx, y - 2, 5, 1, '#f4f4f4'); b.p(tx, y - 1, '#c8c8c8'); b.p(tx + 4, y - 1, '#c8c8c8'); b.r(tx + 1, y, 3, 3, '#8a5a2b') }
+        frac = seg(p, 0.55 + (n - 2) * 0.1, 0.85)
+      }
+      if (frac <= 0) return
+      const top = 10 - Math.round(7 * frac)
+      b.r(tx, top, 5, 10 - top, '#6b6f7f'); b.p(tx + 1, Math.min(9, top + 3), '#5a5e6c')
+      if (frac >= 1) { b.p(tx, 2, '#6b6f7f'); b.p(tx + 2, 2, '#6b6f7f'); b.p(tx + 4, 2, '#6b6f7f'); b.p(tx + 2, 4, pick(night ? ['#ffd27a', '#ffb347'] : ['#7fd1ff', '#c8f0ff'], s.A + n * 80, 200)) }
+    })
+    let swat = false
+    for (const g of bugs) {
+      if (g.x > W + 2) continue
+      if (g.x > g.killX) {
+        const c = g.red ? '#ff5a4a' : '#e3b341'
+        b.s(Math.round(g.x), 7, [".AA.", "BBBB", on(s.A + g.j * 40, 160) ? "L..L" : ".LL."], { A: dim(c, 0.7), B: c, L: '#3a2a1a' })
+        if (now > 0 && g.x < 82 && g.killX > 31) {
+          const tx = SIEGE_TX[Math.min(now - 1, 3)], f = ((s.A + g.j * 53) % 300) / 300
+          b.p(lerp(tx + 2, g.x + 1, f), lerp(3, 7, f), '#ffd60a')
+        }
+        if (!g.red && g.killX === 31 && g.x < 36) swat = true
+      } else if (g.dead < 420) burst(b, g.killX + 2, 8, g.dead / 90, g.castle ? ['#ff5a4a', '#ff9f8a', '#7a2a22'] : ['#ffffff', '#ffd60a', '#ff9f1c'], 8)
+    }
+    const building = (k === 'edit' || k === 'fix') && p > 0.15 && p < 0.85
+    if (building) hammer(b, cx, cy, s)
+    else if (k === 'compact') clawd(b, cx, cy, sitLoop(s))
+    else if (k === 'done' || (k === 'pass' && p > 0.6)) clawd(b, cx, cy, cheerLoop(s))
+    else if (k === 'fail' && p > 0.4) clawd(b, cx, cy, P.slump)
+    else if (swat) slash(b, cx, cy, s, 200)
+    else { clawd(b, cx, cy, P.right); sword(b, cx, cy, 'hold') }
+    if (k === 'done') [[44, 3, 0.05], [64, 2, 0.3], [84, 3, 0.55]].forEach(([x, y, at], n) => burst(b, x, y, (s.k - at * s.ms) / 90, [['#ffd54f', '#ff9f1c', '#e5484d'], ['#7fd1ff', '#5ea8ff', '#2f6fd0'], ['#9be38a', '#c58bff', '#ff7af0']][n], 12))
+    const msg = { grep: ['WAVE 3 · 14 bugs', '#ffb27a'], fail: ['✗ 3 breached', '#ff6b6b'], agent: ['+2 turrets', '#9be38a'], pass: [p > 0.5 ? 'WAVE CLEAR' : 'VOLLEY!', '#ffd54f'], compact: ['repairs · night', '#7fd1ff'] }[k]
+    if (msg) b.t(66, 0, msg[0], msg[1])
+  },
+})
+
+// ---- 7. Deep Dig ----
+const DIG_LAYERS = ['#5a4632', '#5a4632', '#4a4a52', '#4a4a52', '#42424a', '#3a3a44', '#3a3a44', '#33303c', '#2c2638', '#2c2638']
+CONCEPTS.push({
+  id: 7, name: 'Deep Dig', genre: 'Mining',
+  pitch: 'Clawd tunnels sideways through rock. Searching is the drill: every match is an ore vein lighting up. Failures are cave-ins, and a green run breaks into a crystal geode.',
+  map: [['Read', 'Steady pickaxe work, depth counter climbing'], ['Grep', 'Drill speed; ores glow and get counted'], ['Edit', 'Lays mine-cart rails behind him'], ['Test ✗', 'Cave-in: rocks rain down'], ['Subagents', 'Two mine carts roll up the rails'], ['Test ✓', 'Breaks into a geode cavern']],
+  draw(b, s) {
+    const k = s.key, p = s.p, cy = 1, cx = 13
+    const sp = { think: 3, read: 6, grep: 16, edit: 6, fix: 2, agent: 4, pass: 10 }
+    const off = travel(s, sp), o = Math.floor(off)
+    const dark = k === 'compact'
+    b.reset(dark ? '#08070a' : '#100c10')
+    for (let x = 0; x < 30; x++) for (let y = 0; y < H; y++) if (noise((x + o) * 5.3 + y * 9.1) > 0.9) b.p(x, y, '#1a141a')
+    for (let bx = mod(-o, 18); bx < 30; bx += 18) { b.r(bx, 1, 1, 9, '#6b4a2b'); b.r(bx - 1, 0, 3, 1, '#7a5532') }
+    const lx = mod(-o + 9, 36)
+    if (lx < 29) { b.p(lx, 1, '#5a5a5a'); b.p(lx + (on(s.A, 700) ? 1 : 0), 2, dark ? '#ffb347' : '#ffd27a') }
+    const glow = k === 'grep'
+    for (let x = 30; x < W; x++) for (let y = 0; y < H; y++) {
+      const wx = x + o
+      if (x === 30 && noise(wx + y * 13) < 0.35) continue
+      let c = DIG_LAYERS[y]
+      if (noise(wx * 13.1 + y * 7.7) > 0.93) c = dim(c, 1.2)
+      if (dark) c = dim(c, 0.6)
+      b.p(x, y, c)
+      if (noise(wx * 3.1 + y * 17.7) > 0.988) {
+        const gem = ['#5ee0ff', '#ffd54f', '#ff6b8a'][Math.floor(noise(wx + y) * 3)]
+        b.p(x, y, glow && on(s.A + wx * 30, 200) ? '#ffffff' : dark ? dim(gem, 0.6) : gem)
+      }
+    }
+    if ((k === 'pass' && p > 0.3) || k === 'done') {
+      const open = k === 'pass' ? seg(p, 0.3, 0.5) : 1
+      const w = Math.round(22 * open)
+      b.r(31, 0, w, H, '#140c1c')
+      for (let i = 0; i < 7 && i * 3 < w; i++) {
+        const c = ['#c58bff', '#7fd1ff', '#ff9fd0'][i % 3], h = 2 + Math.floor(noise(i) * 5)
+        for (let j = 0; j < h; j++) b.r(32 + i * 3 + Math.floor(j / 3), 9 - j, Math.max(1, 2 - Math.floor(j / 2)), 1, j === h - 1 && on(s.A + i * 90, 240) ? '#ffffff' : c)
+        const h2 = 1 + Math.floor(noise(i + 9) * 3)
+        for (let j = 0; j < h2; j++) b.p(33 + i * 3, j, c)
+      }
+    }
+    if (s.i >= IDX.edit && k !== 'compact' && k !== 'idle') {
+      const len = k === 'edit' ? Math.round(lerp(0, 30, p)) : 30
+      for (let x = 0; x < len; x++) b.p(x, 9, mod(x + o, 3) === 0 ? '#5a3d22' : '#6b6f7f')
+    }
+    if (k === 'agent') [0, 1].forEach(n => {
+      const x = Math.round(lerp(-20, -6 + n * 9, seg(p, n * 0.15, 0.6 + n * 0.15)))
+      b.r(x, 6, 7, 2, '#7a7f8c'); b.r(x, 6, 7, 1, '#9aa0b2'); b.p(x + 1, 8, '#2a2a2a'); b.p(x + 5, 8, '#2a2a2a'); b.p(x + 3, 5, '#ffd27a')
+    })
+    const digging = ['think', 'read', 'grep', 'fix', 'pass'].includes(k) && !(k === 'pass' && p > 0.5)
+    if (digging) {
+      const per = k === 'grep' ? 160 : k === 'think' ? 600 : 320
+      const up = (s.A % per) < per * 0.5
+      clawd(b, cx, cy, up ? P.swing : P.strike)
+      if (up) { b.line(cx + 15, cy + 2, cx + 16, cy, '#a0714a'); b.r(cx + 15, cy - 1, 4, 1, '#9aa0b2') }
+      else {
+        b.line(cx + 15, cy + 5, cx + 16, cy + 6, '#a0714a'); b.r(cx + 17, cy + 4, 1, 4, '#9aa0b2')
+        for (let n = 0; n < 3; n++) b.p(28 - n * 2 - Math.floor(noise(n + s.F) * 3), 5 + n - Math.floor(noise(n * 3 + s.F) * 3), '#8a6a4a')
+      }
+    } else if (k === 'fail') {
+      clawd(b, cx, cy, P.squeeze)
+      for (let i = 0; i < 12; i++) {
+        const x = Math.floor(noise(i) * 29), y = mod(Math.floor(s.k / 70 + noise(i + 3) * 10), 12) - 2
+        b.p(x, y, i % 3 ? '#6b5a48' : '#8a7a68')
+      }
+    } else if (k === 'edit') clawd(b, cx, cy, walk(s, { armR: 10, fy: 1 }))
+    else if (k === 'compact') clawd(b, cx, cy, sitLoop(s))
+    else if (k === 'done' || k === 'pass') clawd(b, cx, cy, cheerLoop(s))
+    else { clawd(b, cx, cy, idleFace(s)); b.p(20, mod(Math.floor(s.A / 120), 10), '#5ea8ff') }
+    const depth = 40 + Math.floor(off / 2)
+    const msg = { think: ['Depth ' + depth + 'm', '#c8b090'], read: ['Depth ' + depth + 'm', '#c8b090'], grep: ['◆ ' + Math.floor(p * 14) + ' ore', '#5ee0ff'], edit: ['laying rails', '#9aa0b2'], fail: ['✗ 3 cave-in', '#ff6b6b'], fix: ['clearing rubble', '#c8b090'], agent: ['+2 carts', '#9be38a'], pass: ['★ GEODE', '#c58bff'], done: ['140m · ◆14 · ★ geode', '#ffd54f'], compact: ['lamp low · resting', '#8a8f9c'] }[k]
+    if (msg) b.t(k === 'pass' || k === 'done' ? 56 : 36, 0, msg[0], msg[1])
+  },
+})
+
+// ---- 8. Sky Voyage ----
+const SKY = {
+  day: ['#1b2a4a', '#1f3053', '#22355a', '#273c63', '#2a426b', '#2f4873', '#35507c', '#3a5683', '#405d8a', '#456391'],
+  dusk: ['#2a1a3a', '#3b2140', '#4a2645', '#5a2d47', '#6e3348', '#8a3d4a', '#a6484a', '#c25a4a', '#d6704e', '#e08a5a'],
+  night: ['#070a16', '#090d1b', '#0b1020', '#0d1325', '#0f162a', '#11192f', '#131c34', '#151f39', '#17223e', '#192543'],
+}
+CONCEPTS.push({
+  id: 8, name: 'Sky Voyage', genre: 'Airship journey',
+  pitch: 'Clawd rides a flying carpet through the clouds. The busier Claude gets, the faster he flies. Errors bring sky pirates, and the end of a turn lands him in a harbour town.',
+  map: [['Think / Read', 'Cruising, clouds drifting past in three layers'], ['Grep', 'Flies through gold rings, one per match'], ['Edit', 'Full speed, wind streaks'], ['Test ✗', 'A pirate balloon fires cannonballs'], ['Subagents', 'Two gulls join the fight'], ['Test ✓ / Done', 'Pirates go down; lands at the port']],
+  draw(b, s) {
+    const k = s.key, p = s.p, cx = 10, cy = 0
+    const sp = { think: 10, read: 16, grep: 24, edit: 34, fail: 12, fix: 14, agent: 18, pass: 20, done: 6, compact: 6, idle: 3 }
+    const off = travel(s, sp)
+    const sky = k === 'compact' ? SKY.dusk : k === 'idle' ? SKY.night : SKY.day
+    b.reset(sky[0])
+    for (let y = 0; y < H; y++) b.r(0, y, W, 1, sky[y])
+    if (k === 'idle') { stars(b, 2, 18, s, 0, 7, ['#e6ecff', '#4a5378']); b.r(78, 1, 3, 3, '#f1e9c9'); b.p(78, 1, sky[1]) }
+    if (k === 'compact') { b.r(70, 6, 6, 3, '#ffcf6a'); b.r(71, 5, 4, 1, '#ffcf6a') }
+    const layers = [{ v: 0.3, y: 2, gap: 37, c: k === 'idle' ? '#141a30' : k === 'compact' ? '#6a3550' : '#3f5a85' }, { v: 0.6, y: 5, gap: 29, c: k === 'idle' ? '#1a2240' : k === 'compact' ? '#9a4a55' : '#6f88b0' }, { v: 1, y: 8, gap: 43, c: k === 'idle' ? '#243050' : k === 'compact' ? '#d27a6a' : '#dfe7f2' }]
+    for (const L of layers) {
+      const lo = Math.floor(off * L.v)
+      for (let x = mod(-lo, L.gap) - 12; x < W; x += L.gap) {
+        const id = Math.floor((x + lo) / L.gap), y = L.y + (noise(id) > 0.5 ? 1 : 0) - 1
+        b.r(x, y, 9, 2, L.c); b.r(x + 2, y - 1, 5, 1, L.c)
+      }
+    }
+    if (k === 'edit') for (let i = 0; i < 8; i++) {
+      const y = Math.floor(noise(i) * 9), x = Math.round(mod(noise(i + 5) * 200 - s.A * 0.2, 120)) - 10
+      b.r(x, y, 6, 1, '#cfe3ff')
+    }
+    let got = 0
+    if (k === 'grep') {
+      const o0 = travelAtStart(s, sp)
+      for (let j = 0; j < 14; j++) {
+        const rx = Math.round(30 + j * 5 - (off - o0) * 1.6)
+        if (rx < cx + 14) { got++; continue }
+        b.p(rx, 1, '#ffd54f'); b.p(rx - 1, 2, '#ffd54f'); b.p(rx + 1, 2, '#ffd54f'); b.p(rx - 1, 3, '#ffd54f'); b.p(rx + 1, 3, '#ffd54f'); b.p(rx, 4, '#ffd54f')
+      }
+    }
+    const pirates = s.i >= IDX.fail && s.i <= IDX.pass && !(k === 'pass' && p > 0.75)
+    const px = k === 'fail' ? Math.round(lerp(100, 66, seg(p, 0, 0.25))) : 66
+    let hit = false
+    if (pirates) {
+      const drop = k === 'pass' ? Math.round(seg(p, 0, 0.7) * 12) : 0
+      const holes = k === 'fix' ? Math.floor(p * 5) : s.i > IDX.fix ? 5 : 0
+      const by = drop
+      b.r(px, by, 12, 4, '#5a2030'); b.r(px + 2, by, 2, 4, '#8a3040'); b.r(px + 7, by, 2, 4, '#8a3040')
+      for (let h = 0; h < holes; h++) b.p(px + 1 + Math.floor(noise(h) * 10), by + 1 + Math.floor(noise(h + 4) * 3), '#120a10')
+      b.p(px + 3, by + 4, '#5a3d22'); b.p(px + 8, by + 4, '#5a3d22'); b.r(px + 3, by + 5, 6, 2, '#6b4a2b'); b.p(px + 5, by + 5, '#e9e6df')
+      if (k === 'pass') for (let i = 0; i < 6; i++) b.p(px + 4 + Math.floor(noise(i + s.F) * 5), by - 1 - i, i % 2 ? '#5a5a5a' : '#8a8a8a')
+      if (k === 'fail') for (const at of [0.3, 0.5, 0.7]) {
+        const f = (p - at) / 0.09
+        if (f > 0 && f < 1) b.r(Math.round(lerp(px + 3, cx + 15, f)), Math.round(lerp(6, 4, f) - Math.sin(f * Math.PI) * 2), 2, 1, '#1a1a1a')
+        if (f >= 1 && f < 1.6) hit = true
+      }
+      if (k === 'fix') bolt(b, cx + 16, px, 2, (s.k % 350) / 350, '#ffb27a')
+    }
+    if (k === 'agent') [0, 1].forEach(n => {
+      const x = Math.round(lerp(-6, cx + 24 + n * 10, seg(p, n * 0.1, 0.5 + n * 0.1)) + Math.sin(s.A / 200 + n) * 2), y = 1 + n * 3
+      if (on(s.A + n * 90, 180)) { b.p(x, y, '#f4f4f4'); b.p(x + 1, y + 1, '#f4f4f4'); b.p(x + 2, y, '#f4f4f4') } else b.r(x, y + 1, 3, 1, '#f4f4f4')
+    })
+    if (k === 'done') for (let i = 0; i < 6; i++) {
+      const bx = Math.round(lerp(W + 4, 58, seg(p, 0, 0.5))) + i * 6, h = 3 + Math.floor(noise(i) * 4)
+      b.r(bx, 10 - h, 5, h, '#1d2235'); b.p(bx + 1, 10 - h + 1, '#ffd27a'); if (h > 4) b.p(bx + 3, 10 - h + 3, '#ffd27a')
+    }
+    b.r(cx - 1, 9, 17, 1, '#b23a48')
+    for (let i = 0; i < 17; i += 2) b.p(cx - 1 + i, 9, '#e8bd62')
+    b.p(on(s.A, 200) ? cx - 2 : cx - 3, 9, '#e8bd62'); b.p(on(s.A, 200) ? cx + 16 : cx + 17, 9, '#e8bd62')
+    let pose = k === 'idle' || k === 'think' ? idleFace(s) : P.right
+    if (hit) pose = hurt(s)
+    if (k === 'fix') pose = P.raise
+    if (k === 'done' || (k === 'pass' && p > 0.6)) pose = cheerLoop(s)
+    if (k === 'compact') pose = P.sit
+    clawd(b, cx, cy, pose)
+    const msg = { read: ['heading east', '#cfe3ff'], grep: ['◎ ' + got + ' rings', '#ffd54f'], edit: ['full sail', '#cfe3ff'], fail: ['✗ 3 · sky pirates', '#ff6b6b'], fix: ['return fire', '#ffb27a'], agent: ['+2 gulls', '#f4f4f4'], pass: ['pirates routed', '#9be38a'], done: ['ARRIVED · Port main', '#ffd54f'], compact: ['drifting at sunset', '#ffcf6a'] }[k]
+    if (msg) b.t(30, 0, msg[0], msg[1])
+  },
+})
+
+// ---- 9. Fishing Dock ----
+const FISH = ["..GGGG.T", "GKGGGGTT", "..GGGG.T"]
+CONCEPTS.push({
+  id: 9, name: 'Fishing Dock', genre: 'Calm, cozy',
+  pitch: 'The quiet one. Clawd fishes off a dock at night. Searching casts the line, matches are bites, and a failing test reels in an old boot. Good for long thinking stretches.',
+  map: [['Read', 'Casts the line out'], ['Grep', 'Bites, one small fish per match'], ['Edit', 'Reels in, the bobber splashing'], ['Test ✗', 'Pulls up an old boot'], ['Subagents', 'Two ducks paddle by'], ['Test ✓', 'A legendary fish leaps out of the water']],
+  draw(b, s) {
+    const k = s.key, p = s.p, cx = 6, cy = 0
+    const night = k === 'compact' || k === 'idle'
+    b.reset(night ? '#090c1a' : '#0f1428')
+    stars(b, 3, 14, s, 0, 5, night ? ['#c8d0e8', '#6b7390'] : ['#6b7390', '#3a4060'])
+    b.r(84, 1, 3, 3, '#f1e9c9'); b.p(84, 1, night ? '#090c1a' : '#0f1428')
+    for (let x = 24; x < W; x++) for (let y = 6; y < H; y++) {
+      const w = mod(x + y * 3 - Math.floor(s.A / 220), 9)
+      b.p(x, y, y === 6 ? (w < 2 ? '#3f74a8' : '#2c5a85') : (w < 1 ? '#2c5a85' : '#1b3a5c'))
+    }
+    for (let y = 6; y < H; y++) if (on(s.A + y * 90, 260)) b.p(85 + (y % 2), y, '#c9c1a0')
+    b.r(0, 9, 25, 1, '#6b4a2b')
+    for (let x = 0; x < 25; x += 4) b.p(x, 9, '#4a3220')
+    b.r(23, 6, 1, 3, '#4a3220')
+    if (k === 'compact') { b.p(23, 5, on(s.A, 300) ? '#ffd27a' : '#ffb347'); b.p(22, 5, '#5a3d22') }
+    const sitting = k === 'compact' || k === 'idle'
+    let bx = 56, by = 5 + (on(s.A, 600) ? 1 : 0), line = true, bobber = true, rodBack = false
+    if (k === 'read' || k === 'fix') {
+      const q = seg(p, k === 'read' ? 0.25 : 0.1, k === 'read' ? 0.75 : 0.6)
+      if (q <= 0) { rodBack = true; line = false; bobber = false }
+      else if (q < 1) { bx = Math.round(lerp(26, 60, q)); by = Math.round(lerp(0, 5, q) - Math.sin(q * Math.PI) * 3) }
+      else bx = 60
+    } else if (k === 'grep') {
+      bx = 60
+      if ((s.k % 450) < 150) { bobber = false; b.p(bx - 1, 6, '#f4f4f4'); b.p(bx + 1, 6, '#f4f4f4') }
+      else { const f = ((s.k % 450) - 150) / 300; b.r(Math.round(lerp(bx, 27, f)), Math.round(lerp(5, 1, f)), 2, 1, '#c8d0e8') }
+    } else if (k === 'edit') {
+      bx = Math.round(lerp(60, 36, p))
+      if (on(s.A, 160)) { b.p(bx - 2, 5, '#cfe3ff'); b.p(bx + 2, 5, '#cfe3ff') }
+    } else if (k === 'fail') {
+      bobber = false
+      b.line(26, 0, 32, 2, '#6b7390', 2)
+      b.s(31, 3, ["BB..", "BB..", "BBBB"], { B: '#5a3d22' })
+      if (on(s.A, 300)) b.p(33, 6, '#5ea8ff')
+      line = false
+    } else if (k === 'pass') {
+      bx = 52
+      if (p < 0.25) { by = 5 + (on(s.A, 80) ? 2 : 0); b.p(bx - 2, 6, '#f4f4f4'); b.p(bx + 2, 6, '#f4f4f4') }
+      else { bobber = false; line = p < 0.75 }
+    } else if (k === 'done') { line = false; bobber = false }
+    else if (sitting) { line = false; bobber = k === 'idle' }
+    if (k === 'agent') [0, 1].forEach(n => {
+      const x = Math.round(lerp(100, 26, seg(p, n * 0.15, 0.85 + n * 0.15)))
+      b.s(x, 4 + n, [".G...", "OGWWW", ".WWWW"], { G: '#2f8a4d', O: '#ff9f1c', W: '#f4f4f4' })
+    })
+    let pose = idleFace(s)
+    if (k === 'fail') pose = P.slump
+    if (k === 'edit') pose = on(s.A, 170) ? { armL: 10, fy: 1 } : { armR: 10, fy: 1 }
+    if (k === 'pass' && p > 0.75) pose = P.raise
+    if (k === 'done') pose = cheerLoop(s)
+    if (sitting) pose = sitLoop(s)
+    clawd(b, cx, cy, pose)
+    if (!sitting && k !== 'done') {
+      if (rodBack) b.r(21, 0, 1, 5, '#a0714a')
+      else b.line(21, 4, 26, 0, '#a0714a')
+    }
+    if (line && bobber) b.line(26, 0, bx, by, '#6b7390', 2)
+    if (bobber) { b.p(bx, by, '#ff4b4b'); b.p(bx, by + 1, '#f4f4f4') }
+    if (k === 'pass' && p >= 0.25 && p < 0.75) {
+      const q = seg(p, 0.25, 0.75)
+      b.s(Math.round(lerp(bx, bx - 18, q)), Math.round(7 - Math.sin(q * Math.PI) * 7), FISH, { G: '#ffcf4a', T: '#ff9f1c', K: '#3a2a10' })
+      if (q < 0.2 || q > 0.8) for (let i = 0; i < 4; i++) b.p(bx - (q > 0.8 ? 18 : 0) + i * 2 - 3, 5 - (i % 2), '#cfe3ff')
+    }
+    if (k === 'pass' && p >= 0.75) b.s(22, 0, FISH, { G: '#ffcf4a', T: '#ff9f1c', K: '#3a2a10' })
+    if (k === 'done') { b.r(1, 6, 4, 3, '#6b6f7f'); b.p(2, 5, '#ff9f1c'); b.p(3, 5, '#ffcf4a') }
+    const msg = { grep: ['catch ×' + Math.floor(p * 14), '#9be38a'], edit: ['reeling in…', '#cfe3ff'], fail: ['✗ an old boot', '#9aa0b2'], agent: ['+2 ducks', '#f4f4f4'], pass: [p > 0.5 ? '★ Legendary Carp · 41cm' : '! big bite', '#ffd54f'], done: ['into the bucket · ×15', '#9be38a'], compact: ['z Z', '#90a4ae'] }[k]
+    if (msg) b.t(k === 'compact' ? 25 : 40, 0, msg[0], msg[1])
+  },
+})
+
+// ---- 10. Campfire Inn ----
+const CONSTELLATION = Array.from({ length: 14 }, (_, i) => [34 + Math.floor(noise(i * 4 + 1) * 26), Math.floor(noise(i * 6 + 2) * 4)])
+function fire(b, x, size, s) {
+  for (let i = -6; i <= 6; i++) b.p(x + i, 9, Math.abs(i) < 4 ? '#3a2a1a' : '#2a2016')
+  b.r(x - 3, 9, 7, 1, '#5a3d22'); b.p(x - 2, 8, '#6b4a2b'); b.p(x + 2, 8, '#6b4a2b')
+  if (size <= 0.05) { b.p(x, 8, '#ff6b35'); return }
+  for (let c = -2; c <= 2; c++) {
+    const h = Math.round(size * (4 - Math.abs(c)) * (0.6 + noise(c * 7 + s.F) * 0.5))
+    for (let j = 0; j < h; j++) {
+      const f = j / Math.max(1, h)
+      b.p(x + c, 8 - j, f < 0.35 ? '#ff6b35' : f < 0.7 ? '#ff9f1c' : '#ffd60a')
+    }
+  }
+  if (size > 0.3) for (let i = 0; i < 4; i++) {
+    const age = (s.A / 90 + i * 4) % 12
+    b.p(x + Math.round(Math.sin(age + i) * 1.5), 7 - age, '#ffd60a')
+  }
+}
+CONCEPTS.push({
+  id: 10, name: 'Campfire Inn', genre: 'Idle camp, HP = context',
+  pitch: 'The rest stop between adventures. The HP bar is your real context window: it drains as the session grows, and a compact is a night in the tent that fills it back up.',
+  map: [['Think / Read', 'Roasts a marshmallow, reads the map'], ['Grep', 'Stargazing: a constellation connects, one star per match'], ['Test ✗', 'Rain puts the fire out'], ['Subagents', 'Two travellers walk in and sit down'], ['Done', 'Songs around the fire'], ['Compact', 'Sleeps; HP refills from 8 to 82']],
+  draw(b, s) {
+    const k = s.key, p = s.p, cx = 6, cy = 1
+    b.reset('#0a0d18')
+    stars(b, 11, 16, s, 0, 5, ['#e6ecff', '#3a4260'])
+    b.r(44, 1, 2, 2, '#f1e9c9')
+    for (let t = 0; t < 6; t++) {
+      const tx = 34 + t * 7 + Math.floor(noise(t) * 3), h = 3 + Math.floor(noise(t + 5) * 2)
+      for (let j = 0; j < h; j++) b.r(tx - Math.floor(j / 2), 9 - h + j, 1 + Math.floor(j / 2) * 2, 1, '#0f1a14')
+    }
+    for (let x = 0; x < W; x++) b.p(x, 9, '#14211a')
+    for (let y = 2; y < H; y++) {
+      const half = y - 2
+      b.r(81 - half, y, half * 2 + 1, 1, '#c9a26b'); b.p(81 - half, y, '#a07a48'); b.p(81 + half, y, '#a07a48')
+      if (y >= 6) { const h2 = y - 6; b.r(81 - h2, y, h2 * 2 + 1, 1, '#2a1f14') }
+    }
+    b.p(70, 3, '#5a5a5a'); b.p(70, 4, on(s.A, 400) ? '#ffd27a' : '#ffb347')
+    const size = k === 'fail' ? lerp(1, 0.05, seg(p, 0, 0.4)) : k === 'fix' ? lerp(0.05, 1, seg(p, 0.1, 0.8)) : k === 'pass' ? 1.6 : k === 'compact' ? 0.5 : 1
+    fire(b, 28, size, s)
+    if (k === 'grep') {
+      const n = Math.floor(p * 15)
+      for (let i = 1; i < Math.min(n, 14); i++) b.line(CONSTELLATION[i - 1][0], CONSTELLATION[i - 1][1], CONSTELLATION[i][0], CONSTELLATION[i][1], '#2a3560')
+      CONSTELLATION.forEach(([x, y], i) => b.p(x, y, i < n ? '#ffd54f' : '#3a4260'))
+    }
+    const travellers = (k === 'agent') || (s.i > IDX.agent && s.i <= IDX.done)
+    if (travellers) [[34, '#7fb3ff'], [48, '#9be38a']].forEach(([tx, tint], n) => {
+      let x = tx, pose = sitLoop(s)
+      if (k === 'agent') {
+        const q = seg(p, n * 0.15, 0.6 + n * 0.15)
+        x = Math.round(lerp(98, tx, q))
+        pose = q < 1 ? { fx: -1, step: on(s.A, 160) } : sitLoop(s)
+      }
+      if (k === 'pass') pose = cheerLoop(s)
+      clawd(b, x, cy, withTint(pose, tint))
+    })
+    let pose = idleFace(s)
+    if (k === 'think') pose = P.right
+    if (k === 'read') pose = P.read
+    if (k === 'edit') pose = on(s.A, 200) ? P.swing : P.strike
+    if (k === 'fail') pose = P.slump
+    if (k === 'fix') pose = on(s.A, 180) ? { armR: 10, fx: 1, fy: 1 } : { armR: 9, fx: 1, fy: 1 }
+    if (k === 'pass' || k === 'done') pose = cheerLoop(s)
+    if (k === 'compact' || k === 'idle') pose = sitLoop(s)
+    clawd(b, cx, cy, pose)
+    if (k === 'think') { b.line(21, 4, 26, 3, '#8a5a2b'); b.p(27, 3, p < 0.6 ? '#f4f4f4' : '#c89a5a') }
+    if (k === 'read') { b.r(cx + 15, cy + 4, 3, 3, '#e9e6df'); b.r(cx + 15, cy + 5, 3, 1, '#8a8f9c') }
+    if (k === 'edit') { b.r(21, 7, 3, 1, '#6b6f7f'); if (!on(s.A, 200)) { b.p(23, 6, '#ffd60a'); b.p(24, 5, '#fff3b0') } }
+    if (k === 'fail') for (let i = 0; i < 34; i++) {
+      const x = mod(Math.floor(noise(i) * 110 - s.A / 30), 100) - 2, y = mod(Math.floor(noise(i * 3) * 10 + s.A / 40), 10)
+      b.p(x, y, '#5ea8ff'); b.p(x - 1, y - 1, '#2c5a85')
+    }
+    if (k === 'done') for (let i = 0; i < 4; i++) {
+      const rise = (s.k / 150 + i * 2.5) % 8, row = 3 - Math.floor(rise / 2)
+      if (row >= 0) b.t(24 + i * 3 + (Math.floor(rise) % 2), row, i % 2 ? '♫' : '♪', i % 2 ? '#ff9f1c' : '#ffd54f')
+    }
+    const hp = hpLeft(s)
+    b.t(60, 0, 'HP', '#9be38a')
+    bar(b, 63, 0, 32, hp / 100, hp > 50 ? '#6bd46b' : hp > 25 ? '#e3b341' : '#e5484d')
+    const msg = { read: ['map: tests/', '#e9e6df'], fail: ['✗ 3 · rain', '#7fb3ff'], fix: ['relighting', '#ffb27a'], compact: ['resting · HP +74', '#9be38a'] }[k]
+    if (msg) b.t(36, 1, msg[0], msg[1])
+    if (k === 'compact') b.t(22, 0, 'z Z', '#90a4ae')
+  },
+})
+
+// ---- v2: the merged journey, at a realistic width, with the HUD in two places ----
+const JOURNEY_W = 150
+const FLOOR_PLATE = '#2c2540', WALL = '#15121f'
+
+// Subagents as mini Clawds: about two-thirds of his size, his own orange, class gear on top.
+function mini(b, x, y, cls, o = {}) {
+  const c = ORANGE, k = '#000000'
+  b.r(x + 1, y, 9, 4, c)
+  const armY = o.cheer ? y + 1 : y + 2
+  b.p(x, armY, c); b.p(x + 10, armY, c)
+  for (const lx of o.step ? [3, 5, 7, 9] : [2, 4, 6, 8]) b.r(x + lx, y + 4, 1, 2, c)
+  if (o.cheer) { b.p(x + 2, y + 2, k); b.p(x + 3, y + 1, k); b.p(x + 4, y + 2, k); b.p(x + 6, y + 2, k); b.p(x + 7, y + 1, k); b.p(x + 8, y + 2, k) }
+  else { b.r(x + 3, y + 1, 1, 2, k); b.r(x + 7, y + 1, 1, 2, k) }
+  if (cls === 'knight') {
+    b.r(x + 1, y - 1, 9, 1, '#9aa0b2'); b.p(x + 5, y - 2, '#e5484d')
+    if (!o.cheer) { b.r(x + 11, y + 1, 2, 3, '#c9d3e6'); b.p(x + 11, y + 2, '#e5484d') }
+  } else {
+    b.r(x + 3, y - 1, 5, 1, '#7a4fd0'); b.r(x + 4, y - 2, 3, 1, '#7a4fd0'); b.p(x + 5, y - 3, '#7a4fd0'); b.p(x + 5, y - 2, '#ffd54f')
+    if (!o.cheer) { b.r(x + 11, y - 2, 1, 8, '#8a5a2b'); b.p(x + 11, y - 3, o.glow ? '#ff7af0' : '#ffb3f6') }
+  }
+}
+function banner2(b, label, q, bg, fg = '#ffffff') {
+  if (q <= 0 || q >= 1) return
+  const x0 = Math.round(lerp(-70, 22, ease(seg(q, 0, 0.25))))
+  const w = label.length + 12
+  for (let y = 3; y <= 6; y++) b.r(x0 + (6 - y), y, w, 1, bg)
+  b.r(x0 + 4, 7, w - 4, 1, '#f4f4f4')
+  b.t(x0 + 7, 2, label, fg, bg)
+}
+const glyphBar = (on1, off1, n, frac) => { const f = Math.round(n * clamp01(frac)); return on1.repeat(f) + off1.repeat(n - f) }
+function journeyLevel(s) {
+  const k = s.key, p = s.p
+  const up = s.i > IDX.done || (k === 'done' && p > 0.6)
+  let exp = 0.55
+  if (s.i > IDX.edit || (k === 'edit' && p > 0.85)) exp += 0.1
+  if (s.i > IDX.fix || (k === 'fix' && p > 0.85)) exp += 0.1
+  if (s.i > IDX.pass || (k === 'pass' && p > 0.7)) exp += 0.15
+  if (k === 'done') exp = lerp(0.9, 1, seg(p, 0, 0.55))
+  if (up) exp = 0.08
+  return { lv: up ? 8 : 7, exp, up }
+}
+function journeyHud(b, s, place) {
+  const { lv, exp, up } = journeyLevel(s)
+  const hp = hpLeft(s) / 100, mp = 0.62 - 0.25 * (s.T / TOTAL)
+  const flash = s.key === 'done' && s.p > 0.6 && on(s.A, 160)
+  const segs = [
+    ['Lv.' + lv + ' ', flash ? '#ff7a6b' : '#ffd54f'], [glyphBar('▰', '▱', 5, exp), ORANGE],
+    ['  HP ', '#a39890'], [glyphBar('█', '░', 5, hp), hp > 0.5 ? '#6bd46b' : hp > 0.25 ? '#e3b341' : '#e5484d'],
+    ['  MP ', '#a39890'], [glyphBar('█', '░', 4, mp), '#5ea8ff'],
+    ['  ⚑ clawd-bar/main', '#a39890'],
+  ]
+  const len = segs.reduce((a, [t]) => a + [...t].length, 0)
+  const row = place === 'bottom' ? 4 : 0
+  let c = b.w - len - 2
+  for (const [t, fg] of segs) { b.t(c, row, t, fg); c += [...t].length }
+  if (up && s.key === 'done') b.t(b.w - len - 2, place === 'bottom' ? 3 : 1, 'LEVEL UP!', '#ffd54f')
+}
+function journey(b, s, place) {
+  const BW = b.w, k = s.key, p = s.p, cy = 1
+  const sp = { think: 6, read: 14, grep: 40 }
+  const off = travel(s, sp), o = Math.floor(off)
+  b.reset(WALL)
+  for (let y = 0; y < 8; y++) for (let x = 0; x < BW; x++) {
+    const row = Math.floor(y / 3), wx = x + Math.floor(off * 0.5) + (row % 2) * 4
+    if (y % 3 === 2 || mod(wx, 8) === 0) b.p(x, y, '#221c33')
+    else if (noise(Math.floor(wx / 8) * 7 + row * 13) > 0.82) b.p(x, y, '#1b1729')
+  }
+  for (let x = 0; x < BW; x++) { b.p(x, 8, mod(x + o, 6) < 3 ? '#3b3152' : '#352c4b'); b.p(x, 9, FLOOR_PLATE) }
+  for (let tx = mod(-o, 30) + 4; tx < BW; tx += 30) {
+    const id = Math.floor((tx + o) / 30)
+    b.r(tx, 4, 1, 2, '#6b5444')
+    b.p(tx, 3, pick(['#ff9f1c', '#ffb03a', '#ff8a1c'], s.A + id * 90, 160))
+    b.p(tx, 2, pick(['#ffd60a', '#fff3b0', '#ffd60a', '#ffb03a'], s.A + id * 50, 120))
+  }
+  const party = (s.i >= IDX.agent && s.i < IDX.done) || (k === 'done' && p < 0.8)
+  const drop = (a, z) => (k === 'agent' ? Math.round(lerp(-8, 4, seg(p, a, z))) : 4)
+  let cx = 10
+  if (k === 'think') { clawd(b, cx, cy, walk(s, { fy: -1 })); b.t(27, 1, ['·', '· ·', '· · ·'][Math.floor(s.k / 400) % 3], '#9aa0b2') }
+  else if (k === 'read') { clawd(b, cx, cy, walk(s, { fy: 1, armR: 10 })); b.r(cx + 15, cy + 4, 3, 3, '#e9e6df'); b.r(cx + 15, cy + 5, 3, 1, '#8a8f9c') }
+  else if (k === 'grep') {
+    const o0 = travelAtStart(s, sp)
+    let got = 0
+    for (let j = 0; j < 14; j++) {
+      const gx = Math.round(26 + j * 6 - (off - o0))
+      if (gx < cx + 13) { got++; continue }
+      const bob = on(s.A + j * 70, 240) ? 1 : 0
+      b.p(gx, 5 + bob, '#5ee0ff'); b.p(gx, 4 + bob, on(s.A + j * 110, 200) ? '#e6fbff' : '#5ee0ff')
+    }
+    clawd(b, cx, cy, walk(s)); b.t(28, 0, '◆ ' + got, '#5ee0ff')
+  } else if (k === 'edit') {
+    const sx = Math.round(lerp(BW + 2, 74, seg(p, 0, 0.3)))
+    cx = Math.round(p < 0.3 ? 10 : lerp(10, 52, seg(p, 0.3, 0.42)))
+    let hit = false
+    if (p < 0.42 || p >= 0.85) { clawd(b, cx, cy, P.right); sword(b, cx, cy, 'hold') } else hit = slash(b, cx, cy, s)
+    if (p < 0.85) slime(b, sx, 4, s, hit)
+    else burst(b, 77, 6, (s.k - 0.85 * s.ms) / 90, ['#ffffff', '#b6f09c', '#7ad15a', '#3f8a2a'])
+    banner2(b, 'CLAW STRIKE', seg(p, 0.3, 0.6), '#e5202e')
+    if (p > 0.45 && p < 0.95) b.t(76, p < 0.65 ? 1 : 0, '-24', '#ffd54f')
+  } else if (k === 'fail') {
+    const bx = Math.round(p < 0.25 ? lerp(BW + 2, 72, seg(p, 0, 0.25)) : p < 0.38 ? lerp(72, 62, seg(p, 0.25, 0.33)) : lerp(62, 72, seg(p, 0.38, 0.55)))
+    cx = Math.round(p < 0.3 ? 52 : lerp(52, 14, seg(p, 0.3, 0.45)))
+    if (p > 0.3 && p < 0.7) clawd(b, cx, cy, hurt(s)); else { clawd(b, cx, cy, P.right); sword(b, cx, cy, 'hold') }
+    if (p > 0.3 && p < 0.45) for (let n = 0; n < 5; n++) b.p(cx + 7 + Math.cos(n * 1.3 + s.F) * 9, cy + 3 + Math.sin(n * 1.3 + s.F) * 3, '#fff3b0')
+    bigSlime(b, bx, 1, s, p > 0.28 && p < 0.36)
+    bar(b, bx, 0, 12, 1, '#ff4b4b', '#3a1a22')
+    banner2(b, 'COUNTER  ✗3', seg(p, 0.25, 0.6), '#000000', '#ff4b4b')
+  } else if (k === 'fix') {
+    cx = Math.round(lerp(14, 50, seg(p, 0, 0.2)))
+    let hit = false
+    if (p < 0.2) { clawd(b, cx, cy, walk(s)); sword(b, cx, cy, 'hold') } else hit = slash(b, cx, cy, s)
+    bigSlime(b, 72, 1, s, hit)
+    bar(b, 72, 0, 12, lerp(1, 0.6, seg(p, 0.2, 0.9)), '#ff4b4b', '#3a1a22')
+    banner2(b, 'PATCH SLASH', seg(p, 0.15, 0.5), '#e5202e')
+  } else if (k === 'agent') {
+    cx = 50
+    bigSlime(b, 72, 1, s, false)
+    bar(b, 72, 0, 12, lerp(0.6, 0.2, seg(p, 0.4, 1)), '#ff4b4b', '#3a1a22')
+    clawd(b, cx, cy, P.right); sword(b, cx, cy, 'hold')
+    if (p > 0.45) bolt(b, 48, 72, 2, ((s.k - 0.45 * s.ms) % 420) / 420, '#c58bff')
+    banner2(b, 'PARTY +2', seg(p, 0.3, 0.7), '#2f6fd0')
+  } else if (k === 'pass') {
+    const cloud = p >= 0.12 && p < 0.7
+    if (p < 0.7) bigSlime(b, 72, 1, s, cloud && on(s.A, 80))
+    if (cloud) {
+      for (let i = 0; i < 70; i++) {
+        const x = 60 + Math.floor(noise(i + s.F * 3) * 34), y = Math.floor(noise(i * 5 + s.F) * 9)
+        b.p(x, y, noise(i * 9 + s.F) > 0.5 ? '#f4f4f4' : '#0b0a10')
+      }
+      for (let i = 0; i < 4; i++) b.r(64 + Math.floor(noise(i + s.F) * 24), Math.floor(noise(i * 3 + s.F) * 7), 2, 2, ORANGE)
+      banner2(b, 'ALL-OUT ATTACK!!', seg(p, 0.12, 0.7), '#e5202e')
+    } else if (p < 0.12) { clawd(b, 50, cy, P.squeeze); sword(b, 50, cy, 'hold') }
+    else { clawd(b, 50, cy, cheerLoop(s)); burst(b, 78, 5, (s.k - 0.7 * s.ms) / 80, ['#ffffff', '#ff9f8a', '#d6453d'], 12); b.t(66, 0, 'CLEAR!', '#ffd54f') }
+  } else if (k === 'done') {
+    clawd(b, 50, cy, cheerLoop(s))
+    chest(b, 74, 4, p > 0.15, s)
+    if (p > 0.2) b.t(26, 0, '◆ Blade of scenes.ts', '#ffd54f')
+    if (p > 0.8) for (const mx of [27, 41]) burst(b, mx, 6, (s.k - 0.8 * s.ms) / 70, ['#ffffff', '#c8c8c8'], 8)
+  } else if (k === 'compact') {
+    fire(b, 34, 0.7, s)
+    clawd(b, 12, cy, sitLoop(s))
+    b.t(28, 0, 'z Z', '#90a4ae'); b.t(44, 1, 'camp · HP refilling', '#9be38a')
+  } else {
+    for (let x = 62; x < BW; x++) for (let y = 7; y < H; y++) {
+      const w = mod(x + y * 3 - Math.floor(s.A / 220), 9)
+      b.p(x, y, y === 7 ? (w < 2 ? '#3f74a8' : '#2c5a85') : (w < 1 ? '#2c5a85' : '#1b3a5c'))
+    }
+    cx = 44
+    clawd(b, cx, cy, idleFace(s))
+    b.line(cx + 15, cy + 3, cx + 20, cy - 1, '#a0714a')
+    const bx = 84, by = 6 + (on(s.A, 600) ? 1 : 0)
+    b.line(cx + 20, 0, bx, by, '#6b7390', 2); b.p(bx, by, '#ff4b4b'); b.p(bx, by + 1, '#f4f4f4')
+    b.t(28, 0, 'fishing · waiting for you', '#7fd1ff')
+  }
+  if (party) {
+    const ch = k === 'done' || (k === 'pass' && p > 0.7)
+    const hide = k === 'pass' && p >= 0.12 && p < 0.7
+    if (!hide) {
+      mini(b, 24, drop(0, 0.25), 'knight', { cheer: ch })
+      mini(b, 37, drop(0.1, 0.35), 'mage', { cheer: ch, glow: on(s.A, 200) })
+    }
+  }
+  journeyHud(b, s, place)
+}
+</script>
+
+<script id="world">
+// ---- v3: the world. Places draw column by column so the road can run straight from one into the next. ----
+const DIM_RAIN = '#5a7ab8'
+const LOC = {}
+LOC.forest = {
+  col(b, x, lx, s, par) {
+    const far = x + Math.floor(par * 0.4)
+    for (let y = 0; y < 8; y++) b.p(x, y, '#0b1a12')
+    if (mod(far, 23) < 3) for (let y = 1; y < 8; y++) b.p(x, y, '#16291d')
+    if (mod(far + 11, 37) < 2) for (let y = 1; y < 8; y++) b.p(x, y, '#13241a')
+    if (mod(lx, 71) < 3) for (let y = 0; y < 8; y++) b.p(x, y, mod(lx, 71) === 1 ? '#4a3626' : '#3a2a1c')
+    if (noise(Math.floor(far / 2) * 3.7) > 0.35) b.p(x, 0, '#1d4a2a')
+    if (noise(Math.floor(far / 3) * 5.1 + 2) > 0.5) b.p(x, 1, '#173d23')
+    if (noise(lx * 13.3 + Math.floor(s.A / 600)) > 0.985) b.p(x, 2 + Math.floor(noise(lx) * 5), '#d4ff7a')
+    b.p(x, 8, noise(lx * 1.7) > 0.8 ? '#3a6a2c' : '#2d4a24'); b.p(x, 9, '#1f3319')
+    if (noise(lx * 0.91 + 5) > 0.97) { b.p(x, 7, '#e5484d'); b.p(x, 8, '#e9e6df') }
+  },
+}
+LOC.neon = {
+  col(b, x, lx, s, par) {
+    const sky = ['#0d0620', '#120828', '#170a30', '#1b0c36', '#1f0e3a', '#22103e', '#241242', '#261444']
+    for (let y = 0; y < 8; y++) b.p(x, y, sky[y])
+    const far = x + Math.floor(par * 0.25), fh = 2 + Math.floor(noise(Math.floor(far / 6) * 1.3) * 4)
+    for (let y = 7 - fh; y < 8; y++) b.p(x, y, '#1a1036')
+    const near = x + Math.floor(par * 0.6), nb = Math.floor(near / 9), nh = 3 + Math.floor(noise(nb * 2.7 + 1) * 4), edge = mod(near, 9)
+    if (edge < 7) {
+      for (let y = 8 - nh; y < 8; y++) {
+        const lit = mod(near, 2) === 0 && y % 2 === 1 && noise(near * 3.1 + y * 7 + nb) > 0.72
+        b.p(x, y, lit ? (noise(nb + y) > 0.5 ? '#ffd27a' : '#7fd1ff') : '#140b26')
+      }
+      if (edge === 0 || edge === 6) b.p(x, 8 - nh, noise(nb) > 0.5 ? '#ff4fa3' : '#3ff0ff')
+    }
+    const sg = Math.floor(lx / 43), sx = mod(lx, 43)
+    if (sx < 4 && noise(sg + Math.floor(s.A / 150) * 0.37) > 0.12) { const c = noise(sg * 3) > 0.5 ? '#ff4fa3' : '#3ff0ff'; b.p(x, 2, c); b.p(x, 3, sx === 0 || sx === 3 ? c : dim(c, 0.45)) }
+    b.p(x, 8, '#2a1e3e'); b.p(x, 9, mod(lx, 7) === 0 ? '#3a2a55' : '#1c1430')
+    if (noise(lx * 3.3) > 0.8) { const y = mod(Math.floor(s.A / 45) + Math.floor(noise(lx * 1.9) * 20), 14) - 2; b.p(x, y, DIM_RAIN); b.p(x, y - 1, '#38507e') }
+  },
+}
+LOC.dungeon = {
+  col(b, x, lx, s, par) {
+    for (let y = 0; y < 8; y++) {
+      const row = Math.floor(y / 3), wx = x + Math.floor(par * 0.5) + (row % 2) * 4
+      b.p(x, y, y % 3 === 2 || mod(wx, 8) === 0 ? '#221c33' : noise(Math.floor(wx / 8) * 7 + row * 13) > 0.82 ? '#1b1729' : '#15121f')
+    }
+    b.p(x, 8, mod(lx, 6) < 3 ? '#3b3152' : '#352c4b'); b.p(x, 9, '#2c2540')
+    if (mod(lx, 30) === 4) {
+      const id = Math.floor(lx / 30)
+      b.r(x, 4, 1, 2, '#6b5444')
+      b.p(x, 3, pick(['#ff9f1c', '#ffb03a', '#ff8a1c'], s.A + id * 90, 160))
+      b.p(x, 2, pick(['#ffd60a', '#fff3b0', '#ffd60a', '#ffb03a'], s.A + id * 50, 120))
+    }
+  },
+}
+function nightSky(b, x, lx, s, top = 7) {
+  for (let y = 0; y < top; y++) b.p(x, y, y < 3 ? '#0a0f22' : '#0d1430')
+  if (noise(lx * 5.7) > 0.93) { const y = Math.floor(noise(lx * 2.1) * 4); b.p(x, y, noise(lx + Math.floor(s.A / 500)) > 0.25 ? '#c8d0e8' : '#3a4260') }
+}
+LOC.pier = {
+  col(b, x, lx, s, par, pw = 150) {
+    nightSky(b, x, lx, s)
+    const h = 1 + Math.floor(noise(Math.floor((x + par * 0.3) / 9)) * 2)
+    for (let y = 6 - h; y < 7; y++) b.p(x, y, '#101a30')
+    const mx = pw - 40
+    if (lx >= mx && lx <= mx + 2) for (let y = 1; y <= 3; y++) b.p(x, y, lx === mx && y === 1 ? '#0a0f22' : '#f1e9c9')
+    if (lx < 12) { b.p(x, 7, '#16211a'); b.p(x, 8, '#3a3a2a'); b.p(x, 9, '#2e2e22'); return }
+    for (let y = 7; y < H; y++) {
+      const w = mod(lx + y * 3 - Math.floor(s.A / 220), 9)
+      b.p(x, y, y === 7 ? (w < 2 ? '#3f74a8' : '#2c5a85') : (w < 1 ? '#2c5a85' : '#1b3a5c'))
+    }
+    if (lx >= mx && lx <= mx + 2 && on(s.A + lx * 90, 260)) b.p(x, 9, '#c9c1a0')
+    if (lx < 76) { b.p(x, 8, mod(lx, 4) === 0 ? '#5a3d22' : '#6b4a2b'); if (mod(lx, 8) === 0) b.p(x, 9, '#4a3220') }
+    if (lx === 74) { b.p(x, 6, '#4a3220'); b.p(x, 7, '#4a3220') }
+    const bt = pw - 22
+    if (bt > 92 && lx >= bt && lx <= bt + 5) { const y0 = 6 + (on(s.A, 900) ? 1 : 0); if (lx === bt + 2) b.p(x, y0 - 2, '#e9e6df'); b.p(x, y0 - 1, lx === bt || lx === bt + 5 ? '#6b4a2b' : '#8a5a2b') }
+  },
+}
+LOC.camp = {
+  col(b, x, lx, s, par, pw = 150) {
+    nightSky(b, x, lx, s, 8)
+    const tl = 5 + Math.round(Math.sin(lx / 5) + noise(Math.floor(lx / 3)))
+    for (let y = tl; y < 8; y++) b.p(x, y, '#0f1a14')
+    if (lx < 10 || lx > pw - 12) for (let y = 0; y < 8; y++) b.p(x, y, mod(lx, 5) < 2 ? '#3a2a1c' : '#0d2416')
+    const lit = lx > 64 && lx < 90
+    b.p(x, 8, lit ? '#4a4a24' : '#2d4a24'); b.p(x, 9, '#1f3319')
+  },
+  props(b, ox, s, pw = 150) {
+    b.r(ox + 50, 8, 14, 1, '#6b4a2b'); b.p(ox + 50, 9, '#4a3220'); b.p(ox + 63, 9, '#4a3220')
+    fire(b, ox + 76, 1, s)
+    const tent = Math.min(pw - 8, Math.max(96, pw - 42))
+    if (tent - 6 > 93) for (let i = 0; i < 4; i++) b.r(ox + 88 + i, 9 - (i % 2), 1, 1 + (i % 2), '#6b4a2b')
+    for (let y = 3; y < 10; y++) { const hw = y - 3; b.r(ox + tent - hw, y, hw * 2 + 1, 1, '#c9a26b'); b.p(ox + tent - hw, y, '#a07a48'); b.p(ox + tent + hw, y, '#a07a48'); if (y >= 6) { const h2 = y - 6; b.r(ox + tent - h2, y, h2 * 2 + 1, 1, '#2a1f14') } }
+    if (pw - 22 > tent + 8) { b.r(ox + pw - 22, 4, 1, 6, '#5a3d22'); b.p(ox + pw - 22, 3, on(s.A, 400) ? '#ffd27a' : '#ffb347') }
+  },
+}
+LOC.inn = {
+  col(b, x, lx, s, par, pw = 150) {
+    for (let y = 0; y < 2; y++) b.p(x, y, mod(lx + y * 2, 3) === 0 ? '#5e2c22' : '#7a3b2e')
+    for (let y = 2; y < 8; y++) b.p(x, y, mod(lx, 5) === 0 ? '#3d2b1f' : '#4a3426')
+    if (mod(lx, 60) < 2) for (let y = 2; y < 8; y++) b.p(x, y, '#2e2018')
+    b.p(x, 8, '#5a3d22'); b.p(x, 9, '#3a3532')
+  },
+  props(b, ox, s, pw = 150) {
+    b.r(ox + 12, 3, 10, 5, '#5a5f73'); b.r(ox + 11, 2, 12, 1, '#6b6f7f'); b.r(ox + 14, 5, 6, 3, '#1a0e08')
+    for (let c = 0; c < 6; c++) { const h = 1 + Math.floor(noise(c * 5 + s.F) * 2.5); for (let j = 0; j < h; j++) b.p(ox + 14 + c, 7 - j, j ? '#ffd60a' : '#ff9f1c') }
+    b.r(ox + 28, 3, 7, 4, '#3d2b1f'); b.r(ox + 29, 4, 5, 2, '#1b2a4a'); b.p(ox + 32, 4, '#f1e9c9')
+    b.r(ox + 47, 4, 2, 5, '#6b4a2b'); b.r(ox + 49, 6, 21, 2, '#e9e6df'); b.p(ox + 49, 8, '#6b4a2b'); b.p(ox + 69, 8, '#6b4a2b')
+    b.r(ox + 49, 5, 4, 1, '#f4f4f4')
+    const roomy = pw - 52 > 92
+    if (roomy) {
+      b.r(ox + 80, 6, 10, 1, '#8a5a2b'); b.p(ox + 81, 7, '#6b4a2b'); b.p(ox + 88, 7, '#6b4a2b'); b.p(ox + 84, 5, on(s.A, 300) ? '#ffd27a' : '#ffb347')
+      for (const bx of [pw - 52, pw - 46]) { b.r(ox + bx, 5, 4, 3, '#7a5532'); b.r(ox + bx, 6, 4, 1, '#5a3d22') }
+    }
+    const bar0 = pw - 36
+    b.r(ox + bar0, 5, 26, 3, '#6b4a2b'); b.r(ox + bar0, 5, 26, 1, '#8a5a2b')
+    for (const mx of [4, 11, 19]) { b.p(ox + bar0 + mx, 4, '#e8bd62'); b.p(ox + bar0 + mx + 1, 4, '#f4f4f4') }
+    b.t(ox + 76, 1, roomy ? 'THE CRAB & QUILL' : 'INN', '#ffd54f')
+    b.p(ox + pw - 6, 2, '#5a5a5a'); b.p(ox + pw - 6, 3, on(s.A, 400) ? '#ffd27a' : '#ffb347')
+  },
+  blanket(b, ox) { b.r(ox + 52, 6, 18, 2, '#b23a48'); for (let i = 0; i < 18; i += 3) b.p(ox + 52 + i, 6, '#d6556a') },
+}
+LOC.gate = {
+  col(b, x, lx, s, par) {
+    ;(lx < 75 ? LOC.forest : LOC.neon).col(b, x, lx, s, par)
+    if (lx >= 68 && lx <= 81) {
+      if (lx <= 70 || lx >= 79) for (let y = 1; y < 10; y++) b.p(x, y, mod(y, 3) === 0 ? '#5a5f73' : '#6b6f7f')
+      else for (let y = 2; y < 10; y++) b.p(x, y, noise(lx * 3 + y * 7 + s.F) > 0.5 ? '#7a4fd0' : '#c58bff')
+      b.p(x, 0, '#7d8696'); b.p(x, 1, '#7d8696')
+    }
+  },
+}
+
+LOC.ramen = {
+  col(b, x, lx, s, par, pw = 150) { LOC.neon.col(b, x, lx + 7, s, par, pw) },
+  props(b, ox, s, pw = 150) {
+    const L = ox + 34
+    for (let x = 0; x < 40; x++) { b.p(L + x, 1, mod(x, 4) < 2 ? '#e5484d' : '#f4f4f4'); b.p(L + x, 2, mod(x, 4) < 2 ? '#b23a48' : '#c8c8c8') }
+    b.r(L, 3, 1, 7, '#5a3d22'); b.r(L + 39, 3, 1, 7, '#5a3d22')
+    for (let x = 3; x < 37; x += 4) b.r(L + x, 3, 3, 1, '#2a2440')
+    b.r(L + 14, 0, 11, 1, '#b23a48')
+    b.t(L + 17, 0, 'RAMEN', '#ffd54f')
+    for (const lx of [2, 37]) b.p(L + lx, 4, on(s.A + lx * 40, 400) ? '#ff6b35' : '#ffb347')
+    b.r(L + 30, 4, 6, 2, '#3a2a1a'); b.p(L + 31, 4, '#e9e6df'); b.p(L + 33, 4, '#e9e6df')
+    const vx = ox + pw - 60
+    if (vx - ox > L - ox + 46) { b.r(vx, 2, 6, 8, '#1b6f8a'); b.r(vx + 1, 3, 4, 3, on(s.A, 700) ? '#7ff0ff' : '#5ad8ef'); b.p(vx + 1, 7, '#ff4fa3'); b.p(vx + 3, 7, '#ffd54f') }
+  },
+  front(b, ox, s) {
+    const L = ox + 34
+    b.r(L + 2, 7, 36, 1, '#8a5a2b'); b.r(L + 2, 8, 36, 2, '#5a3d22')
+    b.r(L + 26, 6, 3, 1, '#e9e6df')
+    for (let i = 0; i < 3; i++) b.p(L + 26 + i, 5 - ((s.A / 260 + i) % 3), '#c8c8c8')
+  },
+}
+const GOBLIN = [["..GGGG..", ".GGGGGG.", ".GKGGKG.", "..GGGG.S", ".BBBBBBS", "..BBBB.S", "..B..B.."], ["..GGGG..", ".GGGGGG.", ".GKGGKG.", "..GGGG.S", ".BBBBBBS", "..BBBB.S", ".B....B."]]
+const GOBLIN_PAL = { G: '#6fbf4e', K: '#1a1a1a', B: '#6b4a2b', S: '#c8c8c8' }
+const TREANT = ["....GGGGGG....", "..GGGGGGGGGG..", ".GGGGGGGGGGGG.", "..GGTTTTTTGG..", "B...TYTTYT...B", ".B..TTTTTT..B.", "..BBTTKKTTBB..", "....TTTTTT....", "....TTTTTT....", "...TT.TT.TT..."]
+const TREANT_PAL = { G: '#2f7a3a', T: '#6b4a2b', Y: '#ffd54f', K: '#2a1a10', B: '#5a3d22' }
+const DRONE = ["..CCC..", "CCKRKCC", ".C...C."]
+function drone(b, x, y, s) {
+  const glitch = noise(s.F * 1.7) > 0.72
+  if (glitch) { b.s(x - 1, y, DRONE, { C: '#ff4fa3', K: '#ff4fa3', R: '#ff4fa3' }); b.s(x + 1, y, DRONE, { C: '#3ff0ff', K: '#3ff0ff', R: '#3ff0ff' }) }
+  b.s(x, y + (on(s.A, 300) ? 1 : 0), DRONE, { C: '#7f8aa8', K: '#1a1a2a', R: on(s.A, 200) ? '#ff3b5c' : '#ff8a9c' })
+}
+
+const ROAD_W = 150, ROAD_CAM = 50
+function roadLayout(PW) {
+  const ROAD = [{ loc: 'forest', from: 0, to: 3 * PW }, { loc: 'pier', from: 3 * PW, to: 4 * PW }, { loc: 'camp', from: 4 * PW, to: 5 * PW }, { loc: 'inn', from: 5 * PW, to: 6 * PW }, { loc: 'forest', from: 6 * PW, to: 8 * PW }, { loc: 'gate', from: 8 * PW, to: 9 * PW }, { loc: 'neon', from: 9 * PW, to: 11 * PW }, { loc: 'ramen', from: 11 * PW, to: 12 * PW }, { loc: 'neon', from: 12 * PW, to: 40 * PW }]
+  const SIGNS = [[3 * PW - 12, '→ Pier'], [4 * PW - 12, '→ Camp'], [5 * PW - 12, '→ Inn'], [8 * PW + 52, '→ NEON CITY'], [11 * PW - 12, '→ Ramen']]
+  const REST = i => i * PW + ROAD_CAM
+  const BEATS = [
+    { key: 'walk', ms: 3000, x0: 60, x1: 160, label: 'Working', line: '● Read src/App.tsx' },
+    { key: 'fight', ms: 3200, x0: 160, x1: 160, label: 'Battle', line: '● Edit src/App.tsx  +18 −4' },
+    { key: 'loot', ms: 2200, x0: 160, x1: 160, label: 'Turn done', line: '✓ Turn complete · 31s', tone: 'good' },
+    { key: 'toPier', ms: 3000, x0: 160, x1: REST(3), label: '→ Pier', line: '(waiting for you)' },
+    { key: 'fish', ms: 3800, x0: REST(3), x1: REST(3), label: 'Fishing', line: '(waiting for you)' },
+    { key: 'toCamp', ms: 2000, x0: REST(3), x1: REST(4), label: '→ Camp', line: '(idle for a minute)' },
+    { key: 'camp', ms: 3200, x0: REST(4), x1: REST(4), label: 'Campfire', line: '(idle)' },
+    { key: 'toInn', ms: 2000, x0: REST(4), x1: REST(5), label: '→ Inn', line: '(idle for 10 minutes)' },
+    { key: 'sleep', ms: 3600, x0: REST(5), x1: REST(5), label: 'Inn', line: '(asleep · a compact here refills HP)' },
+    { key: 'wake', ms: 2800, x0: REST(5), x1: 6 * PW + 140, label: 'New prompt', line: '> fix the login bug' },
+    { key: 'boss', ms: 4200, x0: 6 * PW + 140, x1: 6 * PW + 140, label: 'Boss', line: '● Agent ×2 · npm test ✓ 41 passed', tone: 'good' },
+    { key: 'travel', ms: 3400, x0: 6 * PW + 140, x1: REST(9), label: 'Zone clear', line: 'Forest cleared → Neon City', tone: 'good' },
+    { key: 'neon', ms: 3600, x0: REST(9), x1: REST(9) + 80, label: 'Neon City', line: '● Grep "auth" · 9 matches' },
+    { key: 'neonWin', ms: 2200, x0: REST(9) + 80, x1: REST(9) + 80, label: 'Turn done', line: '✓ Turn complete · 48s', tone: 'good' },
+    { key: 'toRamen', ms: 3600, x0: REST(9) + 80, x1: REST(11), label: '→ Ramen', line: '(idle for a minute)' },
+    { key: 'ramen', ms: 4400, x0: REST(11), x1: REST(11), label: 'Ramen stall', line: '(idle · Neon City\'s rest spot)' },
+  ]
+  return { PW, ROAD, SIGNS, BEATS }
+}
+const LAYOUTS = new Map()
+const layoutFor = w => { if (!LAYOUTS.has(w)) LAYOUTS.set(w, roadLayout(w)); return LAYOUTS.get(w) }
+const BEATS = roadLayout(ROAD_W).BEATS
+const ROAD_TOTAL = BEATS.reduce((a, e) => a + e.ms, 0)
+const BEAT_STARTS = []
+{ let a = 0; for (const e of BEATS) { BEAT_STARTS.push(a); a += e.ms } }
+function roadStateAt(A) {
+  A = Math.max(0, Math.floor(A / TICK) * TICK)
+  const T = mod(A, ROAD_TOTAL)
+  let i = BEATS.length - 1
+  while (i > 0 && BEAT_STARTS[i] > T) i--
+  const ev = BEATS[i], k = T - BEAT_STARTS[i]
+  return { A, T, i, key: ev.key, ev, k, ms: ev.ms, p: k / ev.ms, F: Math.floor(A / TICK) }
+}
+function roadStats(s) {
+  const k = s.key, p = s.p, i = s.i, at = key => BEATS.findIndex(e => e.key === key)
+  const up = i > at('loot') || (k === 'loot' && p > 0.5)
+  let exp = 0.5
+  if (k === 'fight') exp = lerp(0.5, 0.68, seg(p, 0.6, 0.9))
+  if (k === 'loot') exp = up ? 0.04 : lerp(0.68, 1, seg(p, 0, 0.5))
+  if (up) exp = i > at('boss') || (k === 'boss' && p > 0.85) ? 0.42 : 0.04
+  let hp = 0.72 - 0.2 * Math.min(1, s.T / BEAT_STARTS[at('sleep')])
+  if (k === 'sleep') hp = lerp(0.52, 0.96, seg(p, 0.1, 0.9))
+  if (i > at('sleep')) hp = 0.96 - 0.12 * seg(s.T, BEAT_STARTS[at('wake')], ROAD_TOTAL)
+  return { lv: up ? 8 : 7, exp, hp, mp: 0.6, flash: k === 'loot' && p > 0.5 && p < 0.9 && on(s.A, 160), up }
+}
+function hudSegs(w, st) {
+  const segs = [
+    ['Lv.' + st.lv + ' ', st.flash ? '#ff7a6b' : '#ffd54f'], [glyphBar('▰', '▱', 5, st.exp), ORANGE],
+    ['  HP ', '#a39890'], [glyphBar('█', '░', 5, st.hp), st.hp > 0.5 ? '#6bd46b' : st.hp > 0.25 ? '#e3b341' : '#e5484d'],
+  ]
+  if (w >= 120) segs.push(['  MP ', '#a39890'], [glyphBar('█', '░', 4, st.mp), '#5ea8ff'])
+  if (w >= 160) segs.push(['  ⚑ my-app/main', '#a39890'])
+  return segs
+}
+const segsLen = segs => segs.reduce((a, [t]) => a + [...t].length, 0)
+const hudLeft = w => w - segsLen(hudSegs(w, { lv: 7, exp: 0, hp: 0, mp: 0 })) - 2
+function roadHud(b, st) {
+  const segs = hudSegs(b.w, st)
+  let c = b.w - segsLen(segs) - 2
+  for (const [t, fg] of segs) { b.t(c, 4, t, fg); c += [...t].length }
+}
+function placeAt(L, wx) { for (const r of L.ROAD) if (wx >= r.from && wx < r.to) return r; return L.ROAD[L.ROAD.length - 1] }
+
+function road(b, s) {
+  const k = s.key, p = s.p
+  const L = layoutFor(b.w), ev = L.BEATS[s.i]
+  const ex = Math.min(86, hudLeft(b.w) - 14)
+  const fast = k.startsWith('to') || k === 'wake' || k === 'travel'
+  const moveP = k === 'wake' ? seg(p, 0.3, 1) : p
+  const cxw = Math.round(lerp(ev.x0, ev.x1, moveP))
+  const cam = cxw - ROAD_CAM
+  b.reset(TERM)
+  for (let x = 0; x < b.w; x++) { const wx = x + cam, r = placeAt(L, wx); LOC[r.loc].col(b, x, wx - r.from, s, cam, r.to - r.from) }
+  for (const r of L.ROAD) { const ox = r.from - cam; if (LOC[r.loc].props && ox < b.w && ox + (r.to - r.from) > 0) LOC[r.loc].props(b, ox, s, r.to - r.from) }
+  for (const [wx, label] of L.SIGNS) {
+    const x = wx - cam
+    if (x < -20 || x > b.w) continue
+    b.r(x, 6, 1, 4, '#6b4a2b'); b.r(x - 2, 5, 6, 2, '#8a5a2b')
+    if (x - 1 + [...label].length < ROAD_CAM - 1 || x - 1 > ROAD_CAM + 16) b.t(x - 1, 1, label, '#e9e6df')
+  }
+  const cy = 1, sx = ROAD_CAM
+  let pose = walk(s), drawn = false, cxs = sx
+  const step = { fx: 1, step: on(s.A, fast ? 100 : 160) }
+  if (fast) pose = step
+  if (k === 'walk') { pose = step; b.r(sx + 15, cy + 4, 3, 3, '#e9e6df'); b.r(sx + 15, cy + 5, 3, 1, '#8a8f9c'); pose = { ...step, armR: 10, fy: 1 } }
+  if (k === 'fight') {
+    const gx = Math.round(lerp(b.w + 2, ex, seg(p, 0, 0.3)))
+    cxs = Math.round(p < 0.3 ? sx : lerp(sx, ex - 22, seg(p, 0.3, 0.4)))
+    let hit = false
+    if (p >= 0.4 && p < 0.85) { hit = slash(b, cxs, cy, s); drawn = true } else pose = P.right
+    if (p < 0.85) b.s(gx, 3, GOBLIN[on(s.A, 200) ? 1 : 0], hit ? flashPal(GOBLIN_PAL) : GOBLIN_PAL)
+    else burst(b, ex + 3, 6, (s.k - 0.85 * s.ms) / 90, ['#ffffff', '#b6f09c', '#6fbf4e'])
+    banner2(b, 'CLAW STRIKE', seg(p, 0.3, 0.6), '#e5202e')
+    if (p > 0.45 && p < 0.95) b.t(ex + 2, p < 0.65 ? 1 : 0, '-18', '#ffd54f')
+  }
+  if (k === 'loot') {
+    pose = cheerLoop(s); chest(b, ex - 4, 4, p > 0.1, s)
+    if (p > 0.15) b.t(4, 0, '◆ Goblin Fang · +40 EXP', '#ffd54f')
+    if (p > 0.5) b.t(hudLeft(b.w), 3, 'LEVEL UP!  Lv.8', '#ffd54f')
+  }
+  if (k === 'fish') {
+    pose = idleFace(s)
+    b.line(sx + 15, cy + 3, sx + 20, cy - 1, '#a0714a')
+    const bx = sx + 34, dip = s.k > 2400 && s.k < 2800, by = dip ? 9 : 7 + (on(s.A, 600) ? 0 : -1)
+    b.line(sx + 20, 0, bx, by, '#6b7390', 2)
+    if (!dip) { b.p(bx, by - 1, '#ff4b4b'); b.p(bx, by, '#f4f4f4') } else { b.p(bx - 1, 7, '#f4f4f4'); b.p(bx + 1, 7, '#f4f4f4') }
+    if (s.k > 2800) { const q = seg(s.k, 2800, 3500); b.s(Math.round(lerp(bx, sx + 18, q)), Math.round(lerp(7, 0, q)), ["GGG", "GGTT"].map(r => r), { G: '#c8d0e8', T: '#9aa0b2' }) }
+    b.t(4, 0, 'waiting for you…', '#7fd1ff')
+  }
+  if (k === 'camp') { pose = sitLoop(s); b.t(4, 0, 'idle · warming up', '#ffb27a') }
+  if (k === 'sleep') { pose = { sit: true, top: on(s.A, 1300) ? 10 : 9 }; b.t(4, 0, 'z Z  ·  HP refilling', '#9be38a') }
+  if (k === 'wake' && p < 0.3) pose = p < 0.15 ? { sit: true, top: 9 } : P.stretch
+  if (k === 'boss') {
+    const tx = ex
+    const down = seg(p, 0.75, 0.95)
+    if (p < 0.95) b.s(tx, 0, TREANT, (p > 0.55 && p < 0.75 && on(s.A, 80)) ? flashPal(TREANT_PAL) : TREANT_PAL, down ? (i, j) => noise(i * 7 + j * 13) > down : null)
+    bar(b, tx, 0, 14, p < 0.3 ? 1 : lerp(1, 0, seg(p, 0.3, 0.8)), '#ff4b4b', '#3a1a22')
+    const party = p > 0.12
+    if (party) {
+      const dy = Math.round(lerp(-8, 4, seg(p, 0.12, 0.3)))
+      if (!(p > 0.55 && p < 0.75)) { mini(b, 22, dy, 'knight', { cheer: p > 0.8 }); mini(b, 35, Math.round(lerp(-8, 4, seg(p, 0.18, 0.36))), 'mage', { cheer: p > 0.8, glow: on(s.A, 200) }) }
+      if (p > 0.32 && p < 0.55) bolt(b, 47, tx, 2, ((s.k) % 420) / 420, '#c58bff')
+    }
+    if (p > 0.55 && p < 0.75) {
+      for (let i = 0; i < 70; i++) b.p(tx - 8 + Math.floor(noise(i + s.F * 3) * 28), Math.floor(noise(i * 5 + s.F) * 9), noise(i * 9 + s.F) > 0.5 ? '#f4f4f4' : '#0b0a10')
+      for (let i = 0; i < 4; i++) b.r(tx - 4 + Math.floor(noise(i + s.F) * 20), Math.floor(noise(i * 3 + s.F) * 7), 2, 2, ORANGE)
+      banner2(b, 'ALL-OUT ATTACK!!', seg(p, 0.55, 0.75), '#e5202e')
+      drawn = true
+    } else if (p >= 0.32 && p < 0.55) { slash(b, tx - 26, cy, s); drawn = true }
+    else pose = p > 0.8 ? cheerLoop(s) : P.right
+    banner2(b, 'PARTY +2', seg(p, 0.12, 0.32), '#2f6fd0')
+    if (p > 0.8) b.t(4, 0, '★ TREANT DOWN · Forest cleared', '#ffd54f')
+  }
+  if (k === 'travel') { if (p < 0.4) b.t(4, 0, 'ZONE CLEAR', '#ffd54f'); else b.t(4, 0, 'Zone 2 ▸ NEON CITY', '#ff4fa3') }
+  if (k === 'neon') {
+    drone(b, ex + 6, 2, s)
+    if (p < 0.5) b.t(4, 0, 'NEON CITY · glitch drones ahead', '#3ff0ff')
+    else if (p > 0.6) { slash(b, ex - 22, cy, s); drawn = true }
+  }
+  if (k === 'neonWin') {
+    pose = cheerLoop(s)
+    if (p < 0.4) burst(b, ex + 9, 3, s.k / 80, ['#ffffff', '#3ff0ff', '#ff4fa3'], 10)
+    b.t(4, 0, '◆ Glitch Chip · +25 EXP', '#3ff0ff')
+  }
+  if (k === 'ramen') { pose = sitLoop(s); b.t(4, 0, 'slurp…  idle at the ramen stall', '#ffb27a') }
+  const inBed = k === 'sleep' || (k === 'wake' && p < 0.15)
+  if (!drawn) clawd(b, cxs, inBed || k === 'ramen' ? -1 : cy, pose)
+  if (inBed) LOC.inn.blanket(b, 5 * L.PW - cam)
+  for (const r of L.ROAD) { const ox = r.from - cam; if (LOC[r.loc].front && ox < b.w && ox + (r.to - r.from) > 0) LOC[r.loc].front(b, ox, s, r.to - r.from) }
+  roadHud(b, roadStats(s))
+}
+
+// Postcards: each place on its own, looping.
+const POSTCARDS = [
+  { name: 'Enchanted Forest', note: 'Starter zone. Goblins and mushrooms; the Treant guards the exit.', draw(b, s) { const cam = Math.floor(s.A / 70); for (let x = 0; x < b.w; x++) LOC.forest.col(b, x, x + cam, s, cam); clawd(b, 14, 1, walk(s)); const gx = 96 - mod(Math.floor(s.A / 60), 130); b.s(gx, 3, GOBLIN[on(s.A, 200) ? 1 : 0], GOBLIN_PAL) } },
+  { name: 'Neon City', note: 'Rain, neon, and bugs that are literal glitches. A mech waits at the end.', draw(b, s) { const cam = Math.floor(s.A / 70); for (let x = 0; x < b.w; x++) LOC.neon.col(b, x, x + cam, s, cam); clawd(b, 14, 1, walk(s)); drone(b, 62 + Math.round(Math.sin(s.A / 700) * 8), 2, s) } },
+  { name: 'Dungeon', note: 'Torches and slimes, the Merge Hydra on the lowest floor.', draw(b, s) { const cam = Math.floor(s.A / 70); for (let x = 0; x < b.w; x++) LOC.dungeon.col(b, x, x + cam, s, cam); clawd(b, 14, 1, walk(s)); sword(b, 14, 1, 'hold'); slime(b, 70, 4, s, false) } },
+  { name: 'Lakeside Pier', note: 'Where he waits for you right after a turn. Fish come in now and then.', draw(b, s) { const o = 20; for (let x = 0; x < b.w; x++) LOC.pier.col(b, x, x + o, s, o); const sx = 50 - o; clawd(b, sx, 1, idleFace(s)); b.line(sx + 15, 4, sx + 20, 0, '#a0714a'); const by = 7 + (on(s.A, 600) ? 0 : -1); b.line(sx + 20, 0, sx + 34, by, '#6b7390', 2); b.p(sx + 34, by - 1, '#ff4b4b'); b.p(sx + 34, by, '#f4f4f4') } },
+  { name: 'Campfire Clearing', note: 'Idle for a while: he sits on the log by the fire.', draw(b, s) { const o = 22; for (let x = 0; x < b.w; x++) LOC.camp.col(b, x, x + o, s, 0); LOC.camp.props(b, -o, s); clawd(b, 50 - o, 1, sitLoop(s)) } },
+  { name: 'The Inn', note: 'Long idle and compacts: tucked into bed by the fireplace while HP refills.', draw(b, s) { for (let x = 0; x < b.w; x++) LOC.inn.col(b, x, x, s, 0); LOC.inn.props(b, 0, s); clawd(b, 50, -1, { sit: true, top: on(s.A, 1300) ? 10 : 9 }); LOC.inn.blanket(b, 0); b.t(68, 0, 'z Z', '#90a4ae') } },
+  { name: 'Ramen Stall', note: 'Neon City\'s rest spot: a bowl of noodles under the awning in the rain.', draw(b, s) { const o = 22; for (let x = 0; x < b.w; x++) LOC.ramen.col(b, x, x + o, s, 0, 150); LOC.ramen.props(b, -o, s, 150); clawd(b, 50 - o, -1, sitLoop(s)); LOC.ramen.front(b, -o, s) } },
+  { name: 'Crystal Room', note: 'Dungeon rest spot: the save crystal hums while he catches his breath.', draw(b, s) { for (let x = 0; x < b.w; x++) LOC.dungeon.col(b, x, x + 6, s, 0); crystal(b, 58, 3, s); clawd(b, 30, 1, sitLoop(s)) } },
+]
+</script>
+
+<script>
+;(function boot() {
+  const cardsEl = document.getElementById('cards')
+  const chipsEl = document.getElementById('chips')
+  const playBtn = document.getElementById('play')
+  const note = document.getElementById('note')
+  const GLYPHS = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢']
+  const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  let picks = new Set()
+  try { picks = new Set(JSON.parse(localStorage.getItem('clawd-rpg-picks') || '[]')) } catch (e) {}
+
+  const views = CONCEPTS.map(c => {
+    const el = document.createElement('article')
+    el.className = 'card'
+    el.id = 'c' + c.id
+    el.innerHTML = `
+      <header class="card-head">
+        <span class="num">#${c.id}</span><h2>${esc(c.name)}</h2><span class="genre">${esc(c.genre)}</span>
+        <label class="pick"><input type="checkbox" id="pick-${c.id}"> Pick</label>
+      </header>
+      <div class="term">
+        <div class="term-bar"><i></i><i></i><i></i><span>claude — clawd-bar · rpg: ${esc(c.name.toLowerCase())}</span></div>
+        <div class="term-body">
+          <p class="tick" aria-live="off"></p>
+          <canvas width="${W * S}" height="${H * S}" role="img" aria-label="${esc(c.name)} sketch: ${esc(c.pitch)}"></canvas>
+          <div class="prompt">&gt;</div>
+        </div>
+      </div>
+      <div class="body">
+        <p class="pitch">${esc(c.pitch)}</p>
+        <dl class="map">${c.map.map(([e, d]) => `<div><dt>${esc(e)}</dt><dd>${esc(d)}</dd></div>`).join('')}</dl>
+      </div>`
+    cardsEl.appendChild(el)
+    const box = el.querySelector('input')
+    box.checked = picks.has(c.id)
+    el.classList.toggle('picked', box.checked)
+    box.addEventListener('change', () => {
+      box.checked ? picks.add(c.id) : picks.delete(c.id)
+      el.classList.toggle('picked', box.checked)
+      try { localStorage.setItem('clawd-rpg-picks', JSON.stringify([...picks])) } catch (e) {}
+      showPicks()
+    })
+    const canvas = el.querySelector('canvas')
+    return { c, el, canvas, ctx: canvas.getContext('2d'), tick: el.querySelector('.tick'), band: new Band(), visible: true }
+  })
+
+  const mixGrid = document.getElementById('mix-grid')
+  ;[['bottom', 'A · bottom-right, on a floor-coloured plate'], ['top', 'B · top-right, on the wall']].forEach(([place, label]) => {
+    const el = document.createElement('div')
+    el.innerHTML = `
+      <p class="mix-label">${esc(label)}</p>
+      <div class="term">
+        <div class="term-bar"><i></i><i></i><i></i><span>claude — clawd-bar · rpg mode · 150 columns</span></div>
+        <div class="term-body">
+          <p class="tick" aria-live="off"></p>
+          <canvas width="${JOURNEY_W * S}" height="${H * S}" role="img" aria-label="Merged journey with the HUD ${place === 'bottom' ? 'bottom-right' : 'top-right'}"></canvas>
+          <div class="prompt">&gt;</div>
+        </div>
+      </div>`
+    mixGrid.appendChild(el)
+    const canvas = el.querySelector('canvas')
+    views.push({ c: { name: 'Mix ' + place, draw: (b, s) => journey(b, s, place) }, el, canvas, ctx: canvas.getContext('2d'), tick: el.querySelector('.tick'), band: new Band(JOURNEY_W), visible: true })
+  })
+
+  let roadOffset = 0
+  const roadEl = document.createElement('div')
+  roadEl.innerHTML = `
+    <div class="term">
+      <div class="term-bar"><i></i><i></i><i></i><span>claude — my-app · rpg mode · 150 columns</span></div>
+      <div class="term-body">
+        <p class="tick" aria-live="off"></p>
+        <canvas class="road" width="${ROAD_W * S}" height="${H * S}" role="img" aria-label="Clawd walking between zones and rest spots"></canvas>
+        <div class="prompt">&gt;</div>
+      </div>
+    </div>`
+  document.getElementById('road-slot').appendChild(roadEl)
+  const roadCanvas = roadEl.querySelector('canvas')
+  const roadView = { c: { name: 'Road', draw: road }, road: true, el: roadEl, canvas: roadCanvas, ctx: roadCanvas.getContext('2d'), tick: roadEl.querySelector('.tick'), band: new Band(ROAD_W), visible: true }
+  views.push(roadView)
+  const widthIn = document.getElementById('road-width'), widthOut = document.getElementById('road-width-out')
+  widthIn.addEventListener('input', () => {
+    const w = Number(widthIn.value)
+    roadView.band = new Band(w)
+    roadCanvas.width = w * S
+    roadCanvas.style.aspectRatio = w + ' / 10'
+    roadEl.querySelector('.term-bar span').textContent = 'claude — my-app · rpg mode · ' + w + ' columns'
+    widthOut.textContent = w + ' columns'
+    render(true)
+  })
+  const roadChips = BEATS.map((e, i) => {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'chip'
+    if (e.tone) btn.dataset.tone = e.tone
+    btn.innerHTML = `${esc(e.label)}<i></i>`
+    btn.addEventListener('click', () => { roadOffset = mod(BEAT_STARTS[i] + 1 - A, ROAD_TOTAL); render(true) })
+    document.getElementById('road-chips').appendChild(btn)
+    return btn
+  })
+  const postGrid = document.getElementById('post-grid')
+  POSTCARDS.forEach(pc => {
+    const el = document.createElement('div')
+    el.className = 'post'
+    el.innerHTML = `<canvas width="${W * S}" height="${H * S}" role="img" aria-label="${esc(pc.name)}"></canvas><b>${esc(pc.name)}</b><span>${esc(pc.note)}</span>`
+    postGrid.appendChild(el)
+    const canvas = el.querySelector('canvas')
+    views.push({ c: { name: pc.name, draw: pc.draw }, post: true, el, canvas, ctx: canvas.getContext('2d'), tick: null, band: new Band(W), visible: true })
+  })
+
+  const chips = EVENTS.map((e, i) => {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'chip'
+    if (e.tone) btn.dataset.tone = e.tone
+    btn.innerHTML = `${esc(e.label)}<i></i>`
+    btn.addEventListener('click', () => { A = Math.floor(A / TOTAL) * TOTAL + STARTS[i] + 1; render(true) })
+    chipsEl.appendChild(btn)
+    return btn
+  })
+
+  function showPicks() {
+    const list = [...picks].sort((a, b) => a - b).map(id => CONCEPTS.find(c => c.id === id)).filter(Boolean)
+    document.getElementById('pick-list').innerHTML = list.length ? list.map(c => `<b>#${c.id}</b> ${esc(c.name)}`).join(', ') : 'none yet'
+    document.getElementById('copy').hidden = !list.length
+  }
+  showPicks()
+  document.getElementById('copy').addEventListener('click', () => {
+    const text = 'RPG mode picks: ' + [...picks].sort((a, b) => a - b).map(id => '#' + id + ' ' + CONCEPTS.find(c => c.id === id).name).join(', ')
+    const done = () => { note.textContent = 'Copied. Paste it to Claude.' }
+    const fail = () => { note.textContent = text }
+    try { navigator.clipboard.writeText(text).then(done, fail) } catch (e) { fail() }
+  })
+
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(entries => {
+      for (const en of entries) { const v = views.find(v => v.canvas === en.target); if (v) v.visible = en.isIntersecting }
+    }, { rootMargin: '200px 0px' })
+    views.forEach(v => io.observe(v.canvas))
+  }
+
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches
+  let playing = !reduce
+  let speed = 0.5
+  document.querySelectorAll('.speed button').forEach(btn => btn.addEventListener('click', () => {
+    speed = Number(btn.dataset.speed)
+    document.querySelectorAll('.speed button').forEach(o => o.classList.toggle('on', o === btn))
+  }))
+  let A = reduce ? STARTS[IDX.fail] + 1500 : 0
+  let last = performance.now(), lastF = -1
+  if (reduce) note.textContent = 'Paused because your system asks for reduced motion. Press Play to watch.'
+  playBtn.textContent = playing ? 'Pause' : 'Play'
+  playBtn.addEventListener('click', () => { playing = !playing; playBtn.textContent = playing ? 'Pause' : 'Play'; last = performance.now() })
+
+  function render(force) {
+    const s = stateAt(A)
+    if (s.F === lastF && !force) return
+    lastF = s.F
+    const ev = s.ev
+    const glyph = GLYPHS[Math.floor(s.A / 120) % GLYPHS.length]
+    const html = ev.line ? (ev.glyph ? `<span class="g">${glyph}</span> ${esc(ev.line)}` : esc(ev.line)) : '&nbsp;'
+    const rs = roadStateAt(A + roadOffset)
+    const rhtml = rs.ev.line ? esc(rs.ev.line) : '&nbsp;'
+    for (const v of views) {
+      const vs = v.road ? rs : s
+      if (v.tick) {
+        const h = v.road ? rhtml : html, tone = v.road ? rs.ev.tone : ev.tone
+        if (v.tick.dataset.html !== h) { v.tick.innerHTML = h; v.tick.dataset.html = h }
+        if (tone) v.tick.dataset.tone = tone; else delete v.tick.dataset.tone
+      }
+      if (!v.visible && !force) continue
+      v.band.reset()
+      try { v.c.draw(v.band, vs) } catch (err) { console.error(v.c.name, err); v.band.reset(); v.band.t(2, 2, 'sketch error: ' + err.message, '#ff6b6b') }
+      v.band.paint(v.ctx)
+    }
+    roadChips.forEach((c, i) => {
+      c.classList.toggle('on', i === rs.i)
+      c.querySelector('i').style.width = i === rs.i ? (rs.p * 100).toFixed(1) + '%' : i < rs.i ? '100%' : '0'
+    })
+    chips.forEach((c, i) => {
+      c.classList.toggle('on', i === s.i)
+      c.querySelector('i').style.width = i === s.i ? (s.p * 100).toFixed(1) + '%' : i < s.i ? '100%' : '0'
+    })
+  }
+  function frame(now) {
+    if (playing) A += (now - last) * speed
+    last = now
+    render(false)
+    requestAnimationFrame(frame)
+  }
+  render(true)
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render(true))
+  requestAnimationFrame(frame)
+})()
+</script>

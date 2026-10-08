@@ -1,0 +1,12 @@
+{
+  "name": "clawd-rpg",
+  "description": "Unofficial Claude Code fan mods by KaiC5504",
+  "owner": { "name": "KaiC5504" },
+  "plugins": [
+    {
+      "name": "clawd-rpg",
+      "source": "./",
+      "description": "Clawd goes on an adventure above your Claude Code prompt and levels up as you work. Unofficial fan mod."
+    }
+  ]
+}
