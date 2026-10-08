@@ -108,3 +108,39 @@ Claude's answer or step away.
 Known and left for later (don't count these as failures):
 - The Dungeon's crystal room, Neon City's ramen stall and the gates between zones come with those
   zones in plan 4.
+
+## Plan 4: zones, bosses and the party
+
+A boss needs 12 battles won in a zone, so the boss and gate checks come up after a few working
+sessions; `/rpg demo` (plan 5) shows every one of them straight away.
+
+- [ ] Ask Claude to use a subagent ("use an Explore agent to find where X is defined"): a mini Clawd
+      in his orange drops in behind him with a class (Explore: green hood and bow, Plan: purple hat
+      and staff, general-purpose: helmet and shield), and `SCOUT JOINS!` (or MAGE / KNIGHT) shows
+      over its head. Up to three walk behind him.
+- [ ] When that subagent finishes, its attack lands on the foe (an arrow, a bolt or a slash), named
+      over its head (`QUICK SHOT`, `ARCANE BOLT`, `SHIELD BASH`). A subagent's own reads never
+      bring a foe; its edits are its attacks, not Clawd's CLAW STRIKE.
+- [ ] A subagent's own todo list doesn't replace your quest line in the top-left.
+- [ ] The turn's victory with a party pays 60 EXP more (`+65 EXP` for a turn with no fight).
+- [ ] Once the zone meter is full, the next turn that edits brings the boss: Treant in the forest,
+      Merge Hydra in the Dungeon, Mech in Neon City. It fills the band's height, its health runs
+      along the top row over it, and the top-left reads `★ BOSS · TREANT`. Nothing of it touches
+      the HUD, at 179 columns and at 100.
+- [ ] The boss takes six blows, or one passing test run; a finished turn also brings it down. The
+      loot is the boss's (`◆ Treant Heartwood`).
+- [ ] Beating the boss at Lv.3 or more: right after the victory a stone gate with a purple portal
+      stands just ahead, `DUNGEON` (or `NEON CITY`) over it; he walks through it to the pier, and
+      from then on the road is the new zone. Below Lv.3 he stays in the forest.
+- [ ] The Dungeon: brick walls, torches, slimes and skeletons. Neon City: towers, flickering signs,
+      rain, drones and glitch bugs.
+- [ ] A minute idle in the Dungeon: he sits on a stone bench by the floating save crystal
+      (`idle · by the save crystal`). In Neon City: on a stool at the ramen stall under the awning,
+      the counter over his lap and a steaming bowl by him (`idle · slurp…`). Signposts read
+      `→ Crystal` and `→ Ramen`.
+- [ ] A second Claude Code window after the zone changed: its next prompt walks him through a gate
+      into the new zone too, no sudden cut.
+- [ ] Throughout: Clawd and the mini Clawds are always his orange; no text sits on him.
+
+Known and left for later (don't count these as failures):
+- A rejected edit still lands a hit: the call is seen before you answer the permission prompt.

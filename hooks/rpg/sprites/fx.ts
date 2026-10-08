@@ -49,7 +49,7 @@ export function sword(g: Grid, x: number, y: number, down: boolean): void {
 // Sparks around his head while he takes a hit; they stay off his body.
 export function sparks(g: Grid, x: number, y: number, t: number): void {
   const c = on(t, 160) ? 0xffd54f : WHITE
-  for (const [dx, dy] of on(t, 160) ? [[-2, 0], [16, 1], [-1, 3]] : [[-2, 2], [16, -1], [17, 2]]) put(g, x + dx, y + dy, c)
+  for (const [dx, dy] of on(t, 160) ? ([[-2, 0], [16, 1], [-1, 3]] as const) : ([[-2, 2], [16, -1], [17, 2]] as const)) put(g, x + dx, y + dy, c)
 }
 
 export function chest(g: Grid, x: number, y: number, open: boolean, t: number): void {

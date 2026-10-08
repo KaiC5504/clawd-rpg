@@ -164,7 +164,7 @@ function drawParty(g: Grid, s: Scene, beat: Beat, anchor: number): boolean {
   const shown = (story.party ?? []).slice(-3)
   const fx = fightX(s)
   let said: { label: string; x: number; at: number } | null = null
-  shown.forEach((m, i) => {
+  for (const [i, m] of shown.entries()) {
     const x = anchor - (MINI_REACH + 1) * (shown.length - i)
     const y = Math.round(lerp(-8, 4, easeOut(through(t, m.at, 400))))
     const acting = story.skill?.by === m.id && t >= story.skill.at && t - story.skill.at < SKILL_MS
@@ -173,7 +173,7 @@ function drawParty(g: Grid, s: Scene, beat: Beat, anchor: number): boolean {
     if (acting && story.skill) classAttack(g, m.cls, x, fx, t - story.skill.at)
     const news = acting && story.skill ? { label: story.skill.name, at: story.skill.at } : t >= m.at && t - m.at < SKILL_MS ? { label: `${m.cls.toUpperCase()} JOINS!`, at: m.at } : null
     if (news && (!said || news.at >= said.at)) said = { ...news, x }
-  })
+  }
   if (said) write(g, Math.max(0, Math.min(said.x, anchor - 2 - said.label.length)), 0, said.label, PARTY_TEXT)
   return said !== null
 }

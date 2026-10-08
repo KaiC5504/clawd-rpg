@@ -2,18 +2,20 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { encodeCells } from './rpg/cells'
-import { NO_STORY, step, withLevelUp } from './rpg/director'
+import { NO_STORY, passGate, step, withLevelUp } from './rpg/director'
 import type { HookPayload, Story } from './rpg/director'
 import { HIDDEN_BELOW, frame } from './rpg/frame'
 import { ROWS } from './rpg/grid'
-import { FRESH, gain, loadProgress } from './rpg/progress'
+import { FRESH, bossDue, gain, loadProgress } from './rpg/progress'
 import type { Award, Progress } from './rpg/progress'
-import { moveRoad, reanchor } from './rpg/road'
+import { GATE_AFTER, GATE_AHEAD, gateAt, moveRoad, reanchor } from './rpg/road'
 import type { Motion } from './rpg/road'
 import { statsFrom } from './rpg/stats'
 import type { Usage } from './rpg/stats'
 
 const RASTER_KEY = 'rpg'
+// The width the band was last drawn at, for placing a gate before the band is up.
+const USUAL_WIDTH = 179
 // Half the sketch page's speed, the pace KaiC picked as natural. The road moves one whole pixel a
 // frame (6.25 px/s): a speed in fractions of a pixel scrolls 1, 1, 1, then 2, which reads as a hitch.
 const FRAME_MS = 160
@@ -114,15 +116,24 @@ function observe($: EngineInterface, event: string, payload: HookPayload): Promi
 
 async function observeNow($: EngineInterface, event: string, payload: HookPayload): Promise<void> {
   await ensureReady($)
+  // Another session may have levelled him up or cleared a zone since.
+  if (event === 'UserPromptSubmit') progress = (await loadSaved($)) ?? progress
   const now = await $.clock.now()
   const before = await storyNow($)
-  // Where he stands on the road is where a trip to the rest spots sets out from.
-  const { story: next, awards } = step(before, event, { ...payload, roadAt: Math.floor(road.distance) }, now)
+  const roadAt = Math.floor(road.distance)
+  // Where he stands on the road is where a trip to the rest spots sets out from; the zone and a
+  // full zone meter come from his progress.
+  const { story: next, awards } = step(before, event, { ...payload, roadAt, zone: progress.zone, boss: bossDue(progress) }, now)
   let told = next
   if (awards.length > 0) {
     const levelsUp = await earn($, awards)
     if (levelsUp > 0) told = withLevelUp(told, progress.level, now)
     await refreshStats($)
+  }
+  // A cleared zone: he walks out through a gate, never a cut.
+  if ((event === 'TurnEnded' || event === 'UserPromptSubmit') && told.zone !== progress.zone) {
+    const from = event === 'TurnEnded' && told.trip ? told.trip.origin + GATE_AFTER : roadAt + GATE_AHEAD
+    told = passGate(told, progress.zone, gateAt(told, now, road.width || USUAL_WIDTH, from))
   }
   if (told !== before) await update($, story, () => told)
   if (event === 'TurnEnded' && Math.floor(road.distance) !== progress.roadPos) {
@@ -200,15 +211,19 @@ async function toggle($: EngineInterface): Promise<string> {
   return hide ? "Clawd's adventure is hidden. /rpg brings it back." : 'Clawd is back on the road.'
 }
 
-type Shell = { tool_use_id?: string }
-type ShellResult = { deny?: string; isError?: boolean; text?: string; result?: unknown }
+type Call = { tool?: string; tool_use_id?: string; agentId?: string; consent?: unknown }
+type CallResult = { deny?: string; isError?: boolean; text?: string; result?: unknown }
 
-// A command's result straight from the call; PostToolUse brings the same, and the story settles it once.
-async function onShell($: EngineInterface, e: Shell, next: (e: Shell) => Promise<ShellResult>): Promise<ShellResult> {
+// Every tool call, the main loop's and a subagent's (`agentId`), before it runs. A command's result
+// comes straight from the call too; PostToolUse brings the same, and the story settles it once.
+async function onCall($: EngineInterface, e: Call, next: (e: Call) => Promise<CallResult>): Promise<CallResult> {
+  const { tool, tool_use_id: toolUseId, consent: _consent, agentId, ...input } = e
+  const by = agentId === undefined ? {} : { agent_id: agentId }
+  await quietly(observe($, 'PreToolUse', { tool_name: tool, tool_input: input, tool_use_id: toolUseId, ...by }))
   const ran = await next(e)
-  if (ran.deny === undefined) {
-    const payload = ran.isError ? { tool_use_id: e.tool_use_id ?? '', error: ran.text ?? '' } : { tool_use_id: e.tool_use_id ?? '', tool_response: ran.result }
-    await observe($, ran.isError ? 'PostToolUseFailure' : 'PostToolUse', payload).catch(() => undefined)
+  if ((tool === 'Bash' || tool === 'PowerShell') && ran.deny === undefined) {
+    const payload = ran.isError ? { tool_use_id: toolUseId ?? '', error: ran.text ?? '' } : { tool_use_id: toolUseId ?? '', tool_response: ran.result }
+    await quietly(observe($, ran.isError ? 'PostToolUseFailure' : 'PostToolUse', payload))
   }
   return ran
 }
@@ -223,8 +238,7 @@ export const register: Register = on => {
   })
   on('command.run', { command: 'rpg' }, async $ => ({ text: await toggle($) }))
   on('ui.render', { component: 'AbovePrompt' }, ($, e, next) => drawBand($, e as never, next as never) as never)
-  on('tool.call', { tool: 'Bash' }, ($, e, next) => onShell($, e as never, next as never) as never)
-  on('tool.call', { tool: 'PowerShell' }, ($, e, next) => onShell($, e as never, next as never) as never)
+  on('tool.call', ($, e, next) => onCall($, e as never, next as never) as never)
 
   // A render hook may not write state, so the story moves on session events. The turn ends here and
   // not at classic.Stop, which a user's own Stop hook can block to keep Claude working.
@@ -240,12 +254,6 @@ export const register: Register = on => {
   // Claude switches branches mid-session, so the HUD's place is re-read at every prompt.
   on('classic.UserPromptSubmit', async ($, e, next) => {
     await quietly(observe($, 'UserPromptSubmit', e as never).then(() => refreshPlace($)))
-    return next(e)
-  })
-  on('classic.PreToolUse', async ($, e, next) => {
-    // classic.PreToolUse carries the tool call envelope, not the hook's stdin JSON.
-    const { tool, tool_use_id: toolUseId, consent: _consent, ...input } = e as unknown as Record<string, unknown>
-    await quietly(observe($, 'PreToolUse', { tool_name: tool, tool_input: input, tool_use_id: toolUseId }))
     return next(e)
   })
   on('classic.PostToolUse', async ($, e, next) => {
@@ -267,6 +275,14 @@ export const register: Register = on => {
   })
   on('classic.TaskCompleted', async ($, e, next) => {
     await quietly(observe($, 'TaskCompleted', e as never))
+    return next(e)
+  })
+  on('classic.SubagentStart', async ($, e, next) => {
+    await quietly(observe($, 'SubagentStart', e as never))
+    return next(e)
+  })
+  on('classic.SubagentStop', async ($, e, next) => {
+    await quietly(observe($, 'SubagentStop', e as never))
     return next(e)
   })
   on('classic.Notification', async ($, e, next) => {

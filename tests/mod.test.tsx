@@ -564,3 +564,62 @@ test('resizing while he sleeps at the inn keeps him in bed, narrower or wider', 
   expect(rowText(blits.at(-1)!, WIDE, 0)).toContain('z Z  ·  HP refilling')
   await back.unmount()
 })
+
+test('a full zone meter makes the turn a boss fight: TREANT in the top-left', async ($, on) => {
+  const { clock } = await turn($, on, { saved: { progress: { v: 1, level: 2, exp: 0, zoneMeter: 12 } } })
+  await $.tool.call(EDIT as never)
+  await clock.advance(2000)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE, true) })
+  expect(rowText(await raster(t), WIDE, 0)).toContain('★ BOSS · TREANT')
+  await t.unmount()
+})
+
+test('beating the boss clears the forest: saved in the Dungeon, and he walks out through the gate', async ($, on) => {
+  const blits: string[] = []
+  const { clock, store } = await turn($, on, { blits, saved: { progress: { v: 1, level: 2, exp: 90, zoneMeter: 12 } } })
+  await $.tool.call(EDIT as never)
+  await $.turn.complete(DONE)
+  expect(store.get('progress')).toMatchObject({ level: 3, zone: 'dungeon', zoneMeter: 0, unlocked: ['forest', 'dungeon'] })
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await wait(clock, 1000)
+  expect(rowText(blits.at(-1)!, WIDE, 0)).toContain('Treant Heartwood')
+  expect(colorsIn(blits.at(-1)!).has(0x6b6f7f)).toBe(true)
+  await t.unmount()
+})
+
+test('in the Dungeon, the foes are its own', async ($, on) => {
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits, saved: { progress: { v: 1, level: 3, exp: 0, zone: 'dungeon', zoneMeter: 0 } } })
+  await $.tool.call(EDIT as never)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE, true) })
+  await clock.advance(2000)
+  const colors = colorsIn(blits.at(-1)!)
+  expect(colors.has(0x7ad15a) || colors.has(0xe9e6df)).toBe(true)
+  expect(colors.has(0x6fbf4e)).toBe(false)
+  await t.unmount()
+})
+
+test('a subagent joins the party as a mini Clawd behind him, and its edits are its own attacks', async ($, on) => {
+  on('classic.SubagentStart', () => ({}))
+  on('classic.SubagentStop', () => ({}))
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits })
+  await $.classic.SubagentStart({ agent_id: 'a1', agent_type: 'Plan' } as never)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE, true) })
+  await clock.advance(320)
+  expect(rowText(blits.at(-1)!, WIDE, 0)).toContain('MAGE JOINS!')
+  await clock.advance(1600)
+  expect(colorsIn(blits.at(-1)!).has(0xffb3f6)).toBe(true)
+  await $.classic.SubagentStop({ agent_id: 'a1', agent_type: 'Plan' } as never)
+  await clock.advance(320)
+  expect(rowText(blits.at(-1)!, WIDE, 0)).toContain('ARCANE BOLT')
+  await t.unmount()
+})
+
+test("a turn with a party is a raid: 60 EXP more than the turn alone", async ($, on) => {
+  on('classic.SubagentStart', () => ({}))
+  const { store } = await turn($, on)
+  await $.classic.SubagentStart({ agent_id: 'a1', agent_type: 'Explore' } as never)
+  await $.turn.complete(DONE)
+  expect(store.get('progress')).toMatchObject({ exp: 65 })
+})

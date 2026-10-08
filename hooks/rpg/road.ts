@@ -87,6 +87,11 @@ export function placeAt(story: Story, wx: number, now: number, width: number): S
 // The zone a road pixel is in: behind the last gate, the zone he came from.
 export const zoneAt = (story: Story, wx: number): ZoneId => (story.gate && wx < story.gate.x ? story.gate.from : (story.zone ?? 'forest'))
 
+// A gate stands this far past where a turn ended (just ahead of him, before the pier), or, when
+// the zone changed while he was away, this far past where he picks up the walk.
+export const GATE_AFTER = 66
+export const GATE_AHEAD = 90
+
 // Where a gate can stand at or past `x`: never inside a rest spot or over its signpost.
 export function gateAt(story: Story, now: number, width: number, x: number): number {
   const pw = placeWidth(width)
