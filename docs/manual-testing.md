@@ -27,7 +27,7 @@ once all plans are in, top to bottom. Each plan adds its own section when it lan
 - [ ] `/rpg` hides the band, `/rpg` again brings it back; hidden stays hidden after a restart.
 - [ ] Task Manager while Claude works at full width: Claude Code's CPU with the band on vs hidden
       (`/rpg`). Note both numbers; a large gap is worth raising.
-- [ ] The Claude desktop app's Code tab shows no band yet (that's plan 5) and nothing breaks there.
+- [ ] The Claude desktop app's Code tab opening or redrawing never stops the terminal's band.
 
 ## Plan 2: battles and progression
 
@@ -144,3 +144,26 @@ sessions; `/rpg demo` (plan 5) shows every one of them straight away.
 
 Known and left for later (don't count these as failures):
 - A rejected edit still lands a hit: the call is seen before you answer the permission prompt.
+
+## Plan 5: the desktop, the commands and the release
+
+- [ ] `/rpg demo`: a day on the road plays above the prompt, about a minute on a loop: walking with
+      a quest line, CLAW STRIKE, COUNTER, ALL-OUT ATTACK, the party joining and ARCANE BOLT, an
+      interrupt, the pier and a `!`, the campfire, the Treant, victory and LEVEL UP, the gate into
+      the Dungeon, a Dungeon fight, the crystal room, Neon City, the ramen stall, the inn.
+      `/rpg demo` again stops it and the band is back to your session. `/rpg stats` afterwards: the
+      demo earned nothing.
+- [ ] `/rpg demo` while hidden says to bring the band back first; `/rpg` with anything else after
+      it still hides and shows the band.
+- [ ] `/rpg stats`: level and EXP to the next, the zone with its meter and boss, the zones open and
+      the next one's level, the bestiary.
+- [ ] `/rpg doctor`: the band shown at your width (full view), painting frames; narrow the terminal
+      below 100 and it says compact view. The save is fine. With clawd-bar installed and enabled it
+      says its band stacks with this one.
+- [ ] The desktop app's Code tab: the band shows as a looping picture of the same scene (walking,
+      a fight, the rest spot between turns), with the HUD text in it. It moves on when the scene does
+      (within a second or so) and doesn't jump back to its start on every redraw.
+- [ ] `/rpg demo` with the Code tab open plays there too.
+- [ ] The phone app (Remote Control), if you use it: the same loop, or nothing broken.
+- [ ] The README on GitHub: the five pictures animate.
+- [ ] `/plugin` shows clawd-rpg 1.0.0.
