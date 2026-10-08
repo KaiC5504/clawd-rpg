@@ -1,5 +1,6 @@
-import type { RestKind, Story, Trip } from '../../types'
+import type { RestKind, Story, Trip, ZoneId } from '../../types'
 import { CALL_MS, beatOf } from './director'
+import { GATE_W } from './places/gate'
 import { LEG_STEP_MS } from './sprites/clawd'
 
 export const CLAWD_COL = 50
@@ -21,9 +22,14 @@ export const HURRY_WINDOW_MS = 8000
 const WALK = 4
 const HURRY = 8
 
-const SCHEDULE: readonly [RestKind, number][] = [
+// Each zone's own rest spot, where he goes after a minute idle.
+export const NOOK: Record<ZoneId, RestKind> = { forest: 'camp', dungeon: 'crystal', neon: 'ramen' }
+// A signpost stands this far before each rest spot.
+export const SIGN_BEFORE = 12
+
+const schedule = (trip: Trip): [RestKind, number][] => [
   ['pier', 0],
-  ['camp', DOZE_MS],
+  [NOOK[trip.zone ?? 'forest'], DOZE_MS],
   ['inn', SLEEP_MS],
 ]
 
@@ -31,7 +37,7 @@ const SCHEDULE: readonly [RestKind, number][] = [
 // the inn is always the last stop.
 export function stopsOf(trip: Trip, now: number): RestKind[] {
   const until = trip.leftAt ?? now
-  const due: [RestKind, number][] = SCHEDULE.map(([kind, after]) => [kind, trip.at + after])
+  const due: [RestKind, number][] = schedule(trip).map(([kind, after]) => [kind, trip.at + after])
   if (trip.compactAt !== null) due.push(['inn', trip.compactAt])
   due.sort((a, b) => a[1] - b[1])
   const stops: RestKind[] = []
@@ -76,6 +82,19 @@ export function spotsOnRoad(story: Story, now: number, width: number): Spot[] {
 export function placeAt(story: Story, wx: number, now: number, width: number): Spot | null {
   const pw = placeWidth(width)
   return spotsOnRoad(story, now, width).find(p => wx >= p.from && wx < p.from + pw) ?? null
+}
+
+// The zone a road pixel is in: behind the last gate, the zone he came from.
+export const zoneAt = (story: Story, wx: number): ZoneId => (story.gate && wx < story.gate.x ? story.gate.from : (story.zone ?? 'forest'))
+
+// Where a gate can stand at or past `x`: never inside a rest spot or over its signpost.
+export function gateAt(story: Story, now: number, width: number, x: number): number {
+  const pw = placeWidth(width)
+  let at = x
+  for (const spot of spotsOnRoad(story, now, width).sort((a, b) => a.from - b.from)) {
+    if (at + GATE_W > spot.from - SIGN_BEFORE - 3 && at < spot.from + pw) at = spot.from + pw + 2
+  }
+  return at
 }
 
 export type Rest = { kind: RestKind; phase: 'travel' | 'rest' | 'pack'; since: number }

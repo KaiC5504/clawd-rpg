@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { RpgStats } from '../types'
 import { DEFAULT_COLOR, toWords } from '../hooks/rpg/cells'
-import { FOE_ENTER_MS, NO_STORY, beatOf, step, withLevelUp } from '../hooks/rpg/director'
+import { FOE_ENTER_MS, NO_STORY, beatOf, passGate, step, withLevelUp } from '../hooks/rpg/director'
 import type { HookPayload, Story } from '../hooks/rpg/director'
 import { CLAWD_COL, COMPACT_BELOW, COMPACT_COL, ROAD_GLYPHS, clawdAt, clawdCol, foeX, frame } from '../hooks/rpg/frame'
 import type { Scene } from '../hooks/rpg/frame'
@@ -12,8 +12,13 @@ import { EYE, ORANGE, clawd } from '../hooks/rpg/sprites/clawd'
 import { FOES } from '../hooks/rpg/sprites/foes'
 import { FX_GLYPHS } from '../hooks/rpg/sprites/fx'
 import { CAMP } from '../hooks/rpg/places/camp'
+import { CRYSTAL } from '../hooks/rpg/places/crystal'
+import { DUNGEON } from '../hooks/rpg/places/dungeon'
+import { FOREST } from '../hooks/rpg/places/forest'
 import { INN } from '../hooks/rpg/places/inn'
+import { NEON } from '../hooks/rpg/places/neon'
 import { PIER } from '../hooks/rpg/places/pier'
+import { RAMEN } from '../hooks/rpg/places/ramen'
 import type { Place } from '../hooks/rpg/places/place'
 import { DOZE_MS, PACK_MS, SLEEP_MS, placeWidth } from '../hooks/rpg/road'
 
@@ -57,7 +62,51 @@ function stories(): Moment[] {
     { name: 'call', story: called.story, times: span(called.at, 3000) },
     { name: 'levelUp', story: up.story, times: span(up.at, 3000) },
     ...rests(),
+    ...zones(),
   ]
+}
+
+const startIn = (zone: string): [string, HookPayload] => ['SessionStart', { source: 'startup', zone }]
+const bossPrompt: [string, HookPayload] = ['UserPromptSubmit', { boss: true }]
+const joins = (id: string, type: string): [string, HookPayload] => ['SubagentStart', { agent_id: id, agent_type: type }]
+
+// The other zones, their bosses, the party, and a gate on the road.
+function zones(): Moment[] {
+  const span = (from: number, ms: number) => Array.from({ length: 9 }, (_, i) => from + Math.round((i * ms) / 8))
+  const moments: Moment[] = []
+  for (const zone of ['forest', 'dungeon', 'neon']) {
+    const walk = tell([startIn(zone), prompt])
+    const fight = tell([startIn(zone), prompt, edit])
+    const boss = tell([startIn(zone), bossPrompt, edit])
+    const bossFinished = tell([startIn(zone), bossPrompt, edit, pre('Bash', { command: 'npm test' }), post('Tests  5 passed (5)')])
+    const bossWon = tell([startIn(zone), bossPrompt, edit, ['TurnEnded', { reason: 'answer' }]])
+    const ended = tell([startIn(zone), prompt, done()])
+    moments.push(
+      { name: `${zone}Walk`, story: walk.story, times: span(walk.at, 2000) },
+      { name: `${zone}Fight`, story: fight.story, times: span(fight.at, 2400) },
+      { name: `${zone}Boss`, story: boss.story, times: span(boss.at, 2400) },
+      { name: `${zone}BossFinished`, story: bossFinished.story, times: span(bossFinished.at, 2400) },
+      { name: `${zone}BossWon`, story: bossWon.story, times: span(bossWon.at, 4400) },
+      { name: `${zone}Nook`, story: ended.story, times: span(ended.at + DOZE_MS, 5200), at: w => 2 * placeWidth(w), still: true },
+    )
+  }
+  const party = tell([prompt, joins('a1', 'Explore'), joins('a2', 'Plan'), joins('a3', 'general-purpose')])
+  const partyFight = tell([prompt, joins('a1', 'Explore'), joins('a2', 'Plan'), joins('a3', 'general-purpose'), edit, ['SubagentStop', { agent_id: 'a2', agent_type: 'Plan' }]])
+  const scoutShot = tell([prompt, edit, joins('a1', 'Explore'), ['SubagentStop', { agent_id: 'a1', agent_type: 'Explore' }]])
+  const knightBash = tell([prompt, edit, joins('a1', 'general-purpose'), ['SubagentStop', { agent_id: 'a1', agent_type: 'general-purpose' }]])
+  const partyWon = tell([prompt, joins('a1', 'Explore'), edit, ['TurnEnded', { reason: 'answer' }]])
+  const crossing = tell([prompt, done(500)])
+  const gated = passGate(crossing.story, 'dungeon', 566)
+  moments.push(
+    { name: 'party', story: party.story, times: span(party.at - 2000, 3000) },
+    { name: 'partyFight', story: partyFight.story, times: span(partyFight.at, 2400) },
+    { name: 'scoutShot', story: scoutShot.story, times: span(scoutShot.at, 1400) },
+    { name: 'knightBash', story: knightBash.story, times: span(knightBash.at, 1400) },
+    { name: 'partyWon', story: partyWon.story, times: span(partyWon.at, 4400) },
+    { name: 'gate', story: gated, times: span(crossing.at + 5000, 2000), at: () => 500 },
+    { name: 'gateBehind', story: gated, times: span(crossing.at + 8000, 2000), at: () => 560 },
+  )
+  return moments
 }
 
 const done = (roadAt = 0): [string, HookPayload] => ['TurnEnded', { reason: 'answer', roadAt }]
@@ -90,6 +139,9 @@ function rests(): Moment[] {
     ]),
   ]
 }
+
+// The sweeps over every moment at every width take a while.
+const SLOW = { timeoutMs: 60_000 }
 
 // 179 first: the band's width in KaiC's own terminal (184 columns).
 const WIDTHS = [179, 40, 99, 100, 150, 220, 300]
@@ -137,7 +189,7 @@ describe('frame', () => {
 })
 
 describe('the visual rules', () => {
-  test("Clawd's pixels are exactly his sprite in every beat: nothing paints over or recolours him", () => {
+  test("Clawd's pixels are exactly his sprite in every beat: nothing paints over or recolours him", SLOW, () => {
     for (const width of WIDTHS) {
       for (const m of stories()) {
         const { name, times } = m
@@ -152,8 +204,8 @@ describe('the visual rules', () => {
           for (let y = 0; y < PX_H; y++) {
             for (let x = 0; x < width; x++) {
               const c = at(solo, x, y)
-              // In bed the inn's blanket is over him below his eyes.
-              if (c === EMPTY || (me.tucked && y >= 6)) continue
+              // In bed the inn's blanket is over him below his eyes; at the ramen stall, the counter over his lap.
+              if (c === EMPTY || (me.tucked && y >= 6) || (me.counter && y >= 8)) continue
               expect([ORANGE, EYE]).toContain(c)
               if (at(g, x, y) !== c) throw new Error(`${name} at ${width} cols, t+${t - times[0]!}: pixel ${x},${y} is ${at(g, x, y).toString(16)}`)
               const over = g.text.get(Math.floor(y / 2) * width + x)
@@ -166,7 +218,7 @@ describe('the visual rules', () => {
     }
   })
 
-  test('every text cell takes the pixel beneath it as its background', () => {
+  test('every text cell takes the pixel beneath it as its background', SLOW, () => {
     for (const width of WIDTHS) {
       for (const m of stories()) {
         for (const t of m.times) {
@@ -184,36 +236,48 @@ describe('the visual rules', () => {
     }
   })
 
-  test('no foe pixel reaches the HUD: the HUD row past its first cell is pure forest', () => {
+  test('no foe pixel reaches the HUD: the HUD row past its first cell is pure forest', SLOW, () => {
     for (const width of WIDTHS) {
       const left = hudLeft(width, STATS)
       for (const m of stories()) {
         for (const t of m.times) {
           const g = frame(sceneOf(m, width, t))
-          const bare = frame(sceneOf({ ...m, story: { ...NO_STORY, trip: m.story.trip, trail: m.story.trail } }, width, t))
-          for (const y of [8, 9]) for (let x = left; x < width; x++) expect(at(g, x, y)).toBe(at(bare, x, y))
+          const bare = frame(sceneOf({ ...m, story: { ...NO_STORY, trip: m.story.trip, trail: m.story.trail, zone: m.story.zone, gate: m.story.gate } }, width, t))
+          for (const y of [8, 9])
+            for (let x = left; x < width; x++) if (at(g, x, y) !== at(bare, x, y)) throw new Error(`${m.name} at ${width}, t+${t - m.times[0]!}: ${x},${y}`)
         }
       }
     }
   })
 
-  test('foes stand at least 14 columns left of the HUD', () => {
-    for (const width of [100, 120, 150, 160, 220, 300]) expect(foeX(width, STATS)).toBeLessThanOrEqual(hudLeft(width, STATS) - 14)
+  test('foes stand at least 14 columns left of the HUD; a boss ends 6 short of it, as an ordinary foe does', () => {
+    for (const width of [100, 120, 150, 160, 220, 300]) {
+      expect(foeX(width, STATS)).toBeLessThanOrEqual(hudLeft(width, STATS) - 14)
+      for (const kind of ['treant', 'hydra', 'mech'] as const) expect(foeX(width, STATS, FOES[kind].w) + FOES[kind].w).toBeLessThanOrEqual(hudLeft(width, STATS) - 6)
+    }
   })
 
-  test('the compact view has no foes, banners or loot, only Clawd and the forest', () => {
-    const foeColors = new Set([FOES.goblin.pal.G, FOES.shroom.pal.R])
+  test('the compact view has no foes, party, banners or loot, only Clawd and the place', SLOW, () => {
+    const foeColors = new Set([FOES.goblin.pal.G, FOES.shroom.pal.R, FOES.slime.pal.G, FOES.skeleton.pal.S, FOES.drone.pal.R, FOES.treant.pal.G, FOES.hydra.pal.H, FOES.mech.pal.M])
     for (const m of stories()) {
       for (const t of m.times) {
-        const g = frame(sceneOf(m, 80, t))
+        const s = sceneOf(m, 80, t)
+        const g = frame(s)
         for (const c of g.px) expect(foeColors.has(c)).toBe(false)
-        // Only the HUD, and a place's own name painted on it (the inn's sign).
-        for (const key of g.text.keys()) expect([1, ROWS - 1]).toContain(Math.floor(key / 80))
+        const me = clawdAt(s)
+        const solo = grid(80)
+        if (me) clawd(solo, me.x, me.y, me.pose)
+        expect([...g.px].filter(c => c === ORANGE).length).toBeLessThanOrEqual([...solo.px].filter(c => c === ORANGE).length)
+        // Only the HUD, and a place's own name painted on it (the inn's sign, the ramen stall's).
+        for (const [key, { cp }] of g.text) {
+          expect([0, 1, ROWS - 1]).toContain(Math.floor(key / 80))
+          if (key < 80) expect('RAMEN').toContain(String.fromCodePoint(cp))
+        }
       }
     }
   })
 
-  test('every character drawn is ASCII or a known one-cell glyph', () => {
+  test('every character drawn is ASCII or a known one-cell glyph', SLOW, () => {
     const known = new Set<string>([...GLYPHS, ...FX_GLYPHS, ...ROAD_GLYPHS])
     for (const width of WIDTHS) {
       for (const m of stories()) {
@@ -254,7 +318,7 @@ const moment = (name: string) => stories().find(m => m.name === name)!
 
 describe('resting between turns', () => {
   test('at a rest spot the band shows that place alone, at every width from 100 to 300', () => {
-    const places: [string, Place][] = [['pier', PIER], ['camp', CAMP], ['inn', INN]]
+    const places: [string, Place][] = [['pier', PIER], ['camp', CAMP], ['inn', INN], ['dungeonNook', CRYSTAL], ['neonNook', RAMEN]]
     for (const [name, place] of places) {
       const m = moment(name)
       for (const width of [100, 150, 179, 220, 300]) {
@@ -305,6 +369,84 @@ describe('resting between turns', () => {
     const m = moment('travel')
     const g = frame(scene(179, m.times[0]!, placeWidth(179) - 100, true, m.story))
     expect(textRow(g, 1)).toContain('→ Pier')
+  })
+
+  test('in the Dungeon he sits by the crystal, in Neon City at the ramen counter, each saying so', () => {
+    const at179 = (name: string) => sceneOf(moment(name), 179, moment(name).times[0]!)
+    expect(clawdAt(at179('dungeonNook'))!.pose.sit).toBe(true)
+    expect(clawdAt(at179('neonNook'))).toMatchObject({ counter: true })
+    expect(textRow(frame(at179('dungeonNook')), 0).trim()).toBe('idle · by the save crystal')
+    expect(textRow(frame(at179('neonNook')), 0)).toMatch(/^ +idle · slurp… +RAMEN +$/)
+  })
+})
+
+describe('zones, bosses and the party on screen', () => {
+  const first = (name: string, width = 179, dt = 0) => sceneOf(moment(name), width, moment(name).times[0]! + dt)
+  const alone = (place: Place, width: number, cam: number, t: number) => {
+    const g = grid(width)
+    for (let x = 0; x < width; x++) place.col(g, x, cam + x, t, cam, Number.POSITIVE_INFINITY)
+    return g
+  }
+
+  test('each zone draws its own backdrop behind him', () => {
+    for (const [zone, place] of [['forest', FOREST], ['dungeon', DUNGEON], ['neon', NEON]] as const) {
+      const s = first(`${zone}Walk`)
+      const g = frame(s)
+      const bare = alone(place, 179, s.distance, s.t)
+      for (const x of [2, 30, 100]) expect(at(g, x, 8)).toBe(at(bare, x, 8))
+    }
+  })
+
+  test('a gate: the old zone up to it, the portal, then the new zone', () => {
+    const s = first('gate')
+    const g = frame(s)
+    const forest = alone(FOREST, 179, s.distance, s.t)
+    const dungeon = alone(DUNGEON, 179, s.distance, s.t)
+    expect(at(g, 20, 8)).toBe(at(forest, 20, 8))
+    expect(at(g, 120, 8)).toBe(at(dungeon, 120, 8))
+    expect(at(g, 566 - s.distance, 5)).toBe(0x6b6f7f)
+    expect(textRow(g, 0)).toContain('DUNGEON')
+  })
+
+  test("the boss stands in the band, named in the top-left with its health over its head", () => {
+    for (const [zone, name] of [['forest', 'TREANT'], ['dungeon', 'MERGE HYDRA'], ['neon', 'MECH']] as const) {
+      const s = first(`${zone}Boss`, 179, 2000)
+      const g = frame(s)
+      expect(textRow(g, 0).trim()).toBe(`★ BOSS · ${name}`)
+      const kind = s.story.foe!.kind
+      const fx = foeX(179, STATS, FOES[kind].w)
+      const own = new Set(Object.values(FOES[kind].pal))
+      expect(Array.from({ length: FOES[kind].w }, (_, x) => at(g, fx + x, 9)).some(c => own.has(c))).toBe(true)
+      expect(at(g, fx, 0)).toBe(0xe5484d)
+    }
+  })
+
+  test('the party walks behind him, his orange, and drops in when it joins', () => {
+    const orangeLeftOf = (s: Scene) => {
+      const g = frame(s)
+      const me = clawdAt(s)!
+      let n = 0
+      for (let y = 0; y < PX_H; y++) for (let x = 0; x < me.x; x++) if (at(g, x, y) === ORANGE) n++
+      return n
+    }
+    expect(orangeLeftOf(first('party', 179, 4000))).toBeGreaterThan(3 * 40)
+    expect(orangeLeftOf(sceneOf(moment('walk'), 179, moment('walk').times[0]!))).toBe(0)
+  })
+
+  test("a member's class attack is called out over its head, and no cut-in covers the party", () => {
+    for (const [name, label] of [['scoutShot', 'QUICK SHOT'], ['knightBash', 'SHIELD BASH'], ['partyFight', 'ARCANE BOLT']] as const) {
+      const s = first(name, 179, 400)
+      const g = frame(s)
+      expect(textRow(g, 0)).toContain(label)
+      expect(textRow(g, 2).trim()).toBe('')
+    }
+    const joining = first('party', 179, 2000 + 300)
+    expect(textRow(frame(joining), 0)).toContain('KNIGHT JOINS!')
+  })
+
+  test('a boss victory names the boss loot', () => {
+    const g = frame(first('forestBossWon', 179, 1000))
+    expect(textRow(g, 0)).toContain('Treant Heartwood')
   })
 })
 

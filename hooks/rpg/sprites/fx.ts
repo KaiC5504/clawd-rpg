@@ -108,3 +108,30 @@ export function fire(g: Grid, x: number, size: number, t: number): void {
     put(g, x + Math.round(Math.sin(age + i) * 1.5), 7 - age, 0xffd60a)
   }
 }
+
+// A party member's class attack, `ms` into it, from the mini at `x` towards the foe at `fx`:
+// the knight's slash in front of its shield, the mage's bolt, the scout's arrow.
+export function classAttack(g: Grid, cls: 'knight' | 'mage' | 'scout', x: number, fx: number, ms: number): void {
+  if (ms < 0) return
+  if (cls === 'knight') {
+    if (ms >= 480) return
+    const c = on(ms, 160) ? 0xffd54f : WHITE
+    for (const [dx, dy] of [[14, 4], [15, 5], [15, 6], [14, 7]] as const) put(g, x + dx, dy, c)
+    return
+  }
+  const flight = cls === 'mage' ? 600 : 400
+  if (ms >= flight + 240) return
+  if (ms >= flight) {
+    burst(g, fx + 3, 5, (ms - flight) / 80, cls === 'mage' ? [0xffffff, 0xff7af0, 0x7a4fd0] : [0xffffff, 0xffd54f], 8)
+    return
+  }
+  const head = Math.round(lerp(x + 13, fx, ms / flight))
+  if (cls === 'mage') {
+    rect(g, head, 4, 2, 2, 0xff7af0)
+    put(g, head - 2, 5, 0xffb3f6)
+    put(g, head - 4, 4, 0x7a4fd0)
+    return
+  }
+  rect(g, head - 3, 5, 3, 1, 0x8a5a2b)
+  put(g, head, 5, WHITE)
+}

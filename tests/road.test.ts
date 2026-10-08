@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { NO_STORY } from '../hooks/rpg/director'
 import type { Story, Trip } from '../hooks/rpg/director'
-import { DOZE_MS, PACK_MS, SLEEP_MS, camOf, goalOf, moveRoad, placeAt, placeWidth, reanchor, restOf, spotsOf, stopsOf } from '../hooks/rpg/road'
+import { DOZE_MS, PACK_MS, SLEEP_MS, camOf, gateAt, goalOf, moveRoad, placeAt, placeWidth, reanchor, restOf, spotsOf, stopsOf, zoneAt } from '../hooks/rpg/road'
 
 const T0 = 1_000_000
 const W = 179
@@ -141,5 +141,28 @@ describe('a resize while he rests', () => {
 
   test('past the spot he is heading for, he is put back on it rather than left in the forest', () => {
     expect(moveRoad(resting(), T0 + SLEEP_MS, 1000 + 5 * W, W, 0, false, false).distance).toBe(1000 + 3 * W)
+  })
+})
+
+describe('zones on the road', () => {
+  test("a trip rests at its zone's own spot between the pier and the inn", () => {
+    expect(stopsOf(trip({ zone: 'dungeon' }), T0 + SLEEP_MS)).toEqual(['pier', 'crystal', 'inn'])
+    expect(stopsOf(trip({ zone: 'neon' }), T0 + SLEEP_MS)).toEqual(['pier', 'ramen', 'inn'])
+    expect(stopsOf(trip({ zone: 'forest' }), T0 + DOZE_MS)).toEqual(['pier', 'camp'])
+  })
+
+  test('the road is the zone behind the gate up to it, and the zone he walks from it on', () => {
+    const crossed: Story = { ...NO_STORY, zone: 'neon', gate: { x: 500, from: 'dungeon' } }
+    expect([zoneAt(crossed, 499), zoneAt(crossed, 500), zoneAt(crossed, 9000)]).toEqual(['dungeon', 'neon', 'neon'])
+    expect(zoneAt(NO_STORY, 123)).toBe('forest')
+  })
+
+  test("a gate goes where asked, or past any rest spot and its signpost it would stand in", () => {
+    const story = resting()
+    const pw = placeWidth(W)
+    expect(gateAt(story, T0, W, 1066)).toBe(1066)
+    expect(gateAt(story, T0, W, 1000 + pw - 5)).toBe(1000 + 2 * pw + 2)
+    expect(gateAt(story, T0, W, 1000 + pw + 40)).toBe(1000 + 2 * pw + 2)
+    expect(gateAt(story, T0 + DOZE_MS, W, 1000 + pw + 40)).toBe(1000 + 3 * pw + 2)
   })
 })

@@ -4,6 +4,7 @@ import { EMPTY, PX_H, at, grid } from '../hooks/rpg/grid'
 import { EYE, ORANGE, clawd, cheering, hurting, trudging } from '../hooks/rpg/sprites/clawd'
 import { BOSS_KINDS, FOES, drawFoe, foeTop, foeWidth } from '../hooks/rpg/sprites/foes'
 import { FX_GLYPHS, banner } from '../hooks/rpg/sprites/fx'
+import { MINI_REACH, mini } from '../hooks/rpg/sprites/mini'
 
 describe('battle art', () => {
   test('his new poses keep his body his orange', () => {
@@ -45,6 +46,22 @@ describe('battle art', () => {
       expect(foeWidth(kind)).toBeLessThanOrEqual(20)
     }
     for (const kind of ['goblin', 'shroom', 'slime', 'skeleton', 'drone', 'bug'] as const) expect(foeWidth(kind)).toBeLessThanOrEqual(8)
+  })
+
+  test('mini Clawds are his orange, with their gear off their bodies and above row 2', () => {
+    for (const cls of ['knight', 'mage', 'scout'] as const)
+      for (const o of [{}, { cheer: true }, { step: true }, { glow: true }]) {
+        const g = grid(20)
+        mini(g, 2, 4, cls, o)
+        for (let y = 0; y < PX_H; y++)
+          for (let x = 0; x < 20; x++) {
+            const c = at(g, x, y)
+            const isBody = x >= 3 && x <= 11 && y >= 4 && y <= 7
+            if (isBody) expect([ORANGE, EYE]).toContain(c)
+            else if (c !== EMPTY && c !== ORANGE) expect(y).toBeGreaterThanOrEqual(2)
+            if (c !== EMPTY) expect(x).toBeLessThan(2 + MINI_REACH)
+          }
+      }
   })
 
   test("a banner's text stops two columns short of where Clawd stands", () => {
