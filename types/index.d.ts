@@ -20,10 +20,10 @@ export type Work = {
   result?: WorkResult
 }
 
-export type FoeKind = 'goblin' | 'shroom'
+export type FoeKind = 'goblin' | 'shroom' | 'slime' | 'skeleton' | 'drone' | 'bug' | 'treant' | 'hydra' | 'mech'
 
-// `at` is when it dropped in; `hitAt` the last blow it took.
-export type Foe = { kind: FoeKind; hp: number; maxHp: number; elite: boolean; at: number; hitAt: number }
+// `at` is when it dropped in; `hitAt` the last blow it took. `boss`: the zone's boss, on a boss turn.
+export type Foe = { kind: FoeKind; hp: number; maxHp: number; elite: boolean; at: number; hitAt: number; boss?: true }
 
 export type RestKind = 'pier' | 'camp' | 'inn'
 

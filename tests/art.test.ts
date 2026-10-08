@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { EMPTY, PX_H, at, grid } from '../hooks/rpg/grid'
 import { EYE, ORANGE, clawd, cheering, hurting, trudging } from '../hooks/rpg/sprites/clawd'
-import { FOES, drawFoe, foeTop } from '../hooks/rpg/sprites/foes'
+import { BOSS_KINDS, FOES, drawFoe, foeTop, foeWidth } from '../hooks/rpg/sprites/foes'
 import { FX_GLYPHS, banner } from '../hooks/rpg/sprites/fx'
 
 describe('battle art', () => {
@@ -22,11 +22,29 @@ describe('battle art', () => {
   test('foes never wear his orange, and stand on the ground', () => {
     for (const [kind, look] of Object.entries(FOES)) {
       expect(Object.values(look.pal)).not.toContain(ORANGE)
-      for (const frame of look.frames) expect([frame.length, frame[0]!.length]).toEqual([look.h, look.w])
-      const g = grid(12)
+      for (const frame of look.frames) for (const row of frame) expect([frame.length, row.length]).toEqual([look.h, look.w])
+      if (kind === 'drone') continue
+      const g = grid(24)
       drawFoe(g, kind as keyof typeof FOES, 0, foeTop(kind as keyof typeof FOES), 0)
       expect(Array.from({ length: look.w }, (_, x) => at(g, x, PX_H - 1)).some(c => c !== EMPTY)).toBe(true)
     }
+  })
+
+  test('every zone has its own foes, and the drone flies', () => {
+    for (const kind of ['slime', 'skeleton', 'drone', 'bug'] as const) expect(FOES[kind]).toBeDefined()
+    const g = grid(12)
+    drawFoe(g, 'drone', 0, foeTop('drone'), 0)
+    for (let x = 0; x < 12; x++) for (const y of [8, 9]) expect(at(g, x, y)).toBe(EMPTY)
+  })
+
+  test('bosses fill the band from row 1 to the ground, and are the widest things on the road', () => {
+    for (const kind of BOSS_KINDS) {
+      expect(FOES[kind].h).toBe(9)
+      expect(foeTop(kind)).toBe(1)
+      expect(foeWidth(kind)).toBeGreaterThanOrEqual(14)
+      expect(foeWidth(kind)).toBeLessThanOrEqual(20)
+    }
+    for (const kind of ['goblin', 'shroom', 'slime', 'skeleton', 'drone', 'bug'] as const) expect(foeWidth(kind)).toBeLessThanOrEqual(8)
   })
 
   test("a banner's text stops two columns short of where Clawd stands", () => {
