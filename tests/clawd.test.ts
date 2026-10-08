@@ -43,16 +43,16 @@ describe('the big Clawd', () => {
     expect(walking(640).step).toBe(false)
   })
 
-  test('walking, he trots: up a pixel with his legs under him, then down with them spread', () => {
-    expect(feet(drawn(walking(0)))).toEqual({ y: 7, xs: [3, 5, 9, 11] })
-    expect(feet(drawn(walking(320)))).toEqual({ y: 8, xs: [2, 4, 10, 12] })
+  test('walking, his back leg steps onto the one beside it while his front leg steps back, body level', () => {
+    expect(feet(drawn(walking(0)))).toEqual({ y: 8, xs: [3, 5, 9, 11] })
+    expect(feet(drawn(walking(320)))).toEqual({ y: 8, xs: [4, 5, 8, 11] })
   })
 
-  test('he stays inside a 15 × 9 box, springing at most a pixel above it while walking', () => {
-    for (const [pose, top] of [[POSES.stand, 0], [walking(320), 0], [walking(0), -1]] as const) {
+  test('he stays inside a 15 × 9 box when standing or walking', () => {
+    for (const pose of [POSES.stand, walking(0), walking(320)]) {
       for (const key of drawn(pose).keys()) {
         const [x, y] = key.split(',').map(Number)
-        expect(x! >= 0 && x! < 15 && y! >= top && y! < 9 + top).toBe(true)
+        expect(x! >= 0 && x! < 15 && y! >= 0 && y! < 9).toBe(true)
       }
     }
   })
