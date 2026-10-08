@@ -8,9 +8,9 @@ import { statsFrom } from './rpg/stats'
 import type { Usage } from './rpg/stats'
 
 const RASTER_KEY = 'rpg'
-// Half the sketch page's speed, the pace KaiC picked as natural.
+// Half the sketch page's speed, the pace KaiC picked as natural. The road moves one whole pixel a
+// frame (6.25 px/s): a speed in fractions of a pixel scrolls 1, 1, 1, then 2, which reads as a hitch.
 const FRAME_MS = 160
-const WALK_PX_PER_S = 7
 const STATS_MS = 1000
 
 const isHidden = atom({ plugin: 'clawd-rpg', key: 'isHidden' } as const, false)
@@ -19,19 +19,16 @@ const stats = atom({ plugin: 'clawd-rpg', key: 'stats' } as const, statsFrom(nul
 // Module state: a hot reload starts it over, while the atoms live on in $.state.
 let isReady = false
 let place = ''
-let road = { distance: 0, at: 0, isWalking: false }
+let road = { distance: 0, isWalking: false }
 let painting: { requestId: string; width: number; painted: string } | null = null
 let frameTimer: { cancel: () => void } | null = null
+// A frame still on its way to the terminal: the next tick skips rather than piling blits up.
+let isBlitting = false
 
 function stopPainting(): void {
   frameTimer?.cancel()
   frameTimer = null
   painting = null
-}
-
-function advance(now: number, isWalking: boolean): void {
-  const distance = road.isWalking && road.at ? road.distance + (WALK_PX_PER_S * (now - road.at)) / 1000 : road.distance
-  road = { distance, at: now, isWalking }
 }
 
 async function refreshStats($: EngineInterface): Promise<void> {
@@ -65,15 +62,19 @@ async function cellsNow($: EngineInterface, width: number, now: number): Promise
 
 async function paintFrame($: EngineInterface): Promise<void> {
   const p = painting
-  if (!p) return
-  const now = await $.clock.now()
-  advance(now, road.isWalking)
-  const cells = await cellsNow($, p.width, now)
-  if (cells === p.painted) return
-  p.painted = cells
-  const blitted = await $.ui.blit({ requestId: p.requestId, key: RASTER_KEY, cells })
-  // Not mounted any more (hidden, collapsed, resized): rest until the next draw.
-  if (blitted.deny !== undefined && painting === p) stopPainting()
+  if (!p || isBlitting) return
+  isBlitting = true
+  try {
+    if (road.isWalking) road.distance += 1
+    const cells = await cellsNow($, p.width, await $.clock.now())
+    if (cells === p.painted) return
+    p.painted = cells
+    const blitted = await $.ui.blit({ requestId: p.requestId, key: RASTER_KEY, cells })
+    // Not mounted any more (hidden, collapsed, resized): rest until the next draw.
+    if (blitted.deny !== undefined && painting === p) stopPainting()
+  } finally {
+    isBlitting = false
+  }
 }
 
 type BandEvent = Parameters<EngineInterface['ui']['resolve']>[0] & {
@@ -88,9 +89,8 @@ async function drawBand($: EngineInterface, e: BandEvent, next: (e: BandEvent) =
     if (e.surface === 'terminal') stopPainting()
     return next(e)
   }
-  const now = await $.clock.now()
-  advance(now, e.props.isWorking)
-  const cells = await cellsNow($, width, now)
+  road.isWalking = e.props.isWorking
+  const cells = await cellsNow($, width, await $.clock.now())
   if (!painting || painting.requestId !== e.requestId || painting.width !== width) {
     stopPainting()
     painting = { requestId: e.requestId, width, painted: cells }

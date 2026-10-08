@@ -55,6 +55,27 @@ function hudRow(cells: string, w: number): string {
   return row
 }
 
+// The bottom row's cell at a column as `glyph fg bg`: the ground, two pixels tall.
+function groundCell(cells: string, w: number, col: number): string {
+  const words = new Uint32Array(Uint8Array.from(atob(cells), c => c.charCodeAt(0)).buffer)
+  return Array.from(words.slice((4 * w + col) * 3, (4 * w + col) * 3 + 3)).join(' ')
+}
+
+test('the forest scrolls exactly one pixel a frame, so the walk never hitches', async ($, on) => {
+  const blits: string[] = []
+  const clock = mock.clock(on, { now: NOW })
+  fakeSession(on, blits)
+  await $.classic.SessionStart({ source: 'startup' })
+  await clock.settle()
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(150, true) })
+  for (let i = 0; i < 24; i++) await clock.advance(160)
+  expect(blits.length).toBeGreaterThan(20)
+  for (let i = 1; i < blits.length; i++) {
+    for (let x = 0; x < 40; x++) expect(groundCell(blits[i]!, 150, x)).toBe(groundCell(blits[i - 1]!, 150, x + 1))
+  }
+  await t.unmount()
+})
+
 for (const [kind, repo] of [
   ['wide', { cwd: 'C:/src/我的项目', branch: 'main' }],
   ['emoji', { cwd: 'C:/src/my-app', branch: 'feat/🚀' }],
