@@ -4,6 +4,7 @@ import type { RpgStats } from '../types'
 import { CLAWD_COL } from '../hooks/rpg/frame'
 import { grid } from '../hooks/rpg/grid'
 import { GLYPHS, PLACE_MAX, drawHud, hudLeft, hudSegments } from '../hooks/rpg/hud'
+import { FRESH } from '../hooks/rpg/progress'
 import { statsFrom } from '../hooks/rpg/stats'
 
 const S: RpgStats = { level: 7, exp: 0.6, hp: 0.88, mp: 0.62, place: 'my-app/main' }
@@ -62,12 +63,16 @@ describe('hud', () => {
 
 describe('stats', () => {
   test('HP is the context left and MP the 5-hour limit left', () => {
-    const s = statsFrom({ context: { percent: 12 }, rateLimits: [{ kind: 'five_hour', percentUsed: 38 }] }, 'my-app/main')
+    const s = statsFrom({ context: { percent: 12 }, rateLimits: [{ kind: 'five_hour', percentUsed: 38 }] }, 'my-app/main', FRESH)
     expect([s.hp, s.mp, s.place]).toEqual([0.88, 0.62, 'my-app/main'])
   })
 
   test('with no usage to read, HP and MP are full', () => {
-    expect(statsFrom(null, '')).toEqual({ level: 1, exp: 0, hp: 1, mp: 1, place: '' })
-    expect(statsFrom({}, 'x').hp).toBe(1)
+    expect(statsFrom(null, '', FRESH)).toEqual({ level: 1, exp: 0, hp: 1, mp: 1, place: '' })
+    expect(statsFrom({}, 'x', FRESH).hp).toBe(1)
+  })
+
+  test('level and the EXP bar come from saved progress', () => {
+    expect(statsFrom(null, '', { ...FRESH, level: 4, exp: 75 })).toMatchObject({ level: 4, exp: 0.5 })
   })
 })

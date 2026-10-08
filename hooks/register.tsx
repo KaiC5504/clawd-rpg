@@ -2,8 +2,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { encodeCells } from './rpg/cells'
+import { NO_STORY } from './rpg/director'
 import { HIDDEN_BELOW, frame } from './rpg/frame'
 import { ROWS } from './rpg/grid'
+import { FRESH } from './rpg/progress'
 import { statsFrom } from './rpg/stats'
 import type { Usage } from './rpg/stats'
 
@@ -14,7 +16,7 @@ const FRAME_MS = 160
 const STATS_MS = 1000
 
 const isHidden = atom({ plugin: 'clawd-rpg', key: 'isHidden' } as const, false)
-const stats = atom({ plugin: 'clawd-rpg', key: 'stats' } as const, statsFrom(null, ''))
+const stats = atom({ plugin: 'clawd-rpg', key: 'stats' } as const, statsFrom(null, '', FRESH))
 
 // Module state: a hot reload starts it over, while the atoms live on in $.state.
 let isReady = false
@@ -33,7 +35,7 @@ function stopPainting(): void {
 
 async function refreshStats($: EngineInterface): Promise<void> {
   const usage = (await $.session.usage().then(u => u, () => null)) as Usage | null
-  const next = statsFrom(usage, place)
+  const next = statsFrom(usage, place, FRESH)
   if (JSON.stringify(next) !== JSON.stringify(await read($, stats))) await update($, stats, () => next)
 }
 
@@ -57,7 +59,7 @@ async function ensureReady($: EngineInterface): Promise<void> {
 }
 
 async function cellsNow($: EngineInterface, width: number, now: number): Promise<string> {
-  return encodeCells(frame({ width, t: now, distance: road.distance, isWalking: road.isWalking, stats: await read($, stats) }))
+  return encodeCells(frame({ width, t: now, distance: road.distance, isWalking: road.isWalking, stats: await read($, stats), story: NO_STORY }))
 }
 
 async function paintFrame($: EngineInterface): Promise<void> {
