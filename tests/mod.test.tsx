@@ -454,3 +454,94 @@ test('a tool call after the turn has ended brings no foe', async ($, on) => {
   expect(FOE_COLORS.some(c => colors.has(c))).toBe(false)
   await t.unmount()
 })
+
+// Lets the frame timer run `ms` of road while the band is mounted.
+async function wait(clock: { advance: (ms: number) => Promise<unknown> }, ms: number) {
+  for (let left = ms; left > 0; left -= 160) await clock.advance(160)
+}
+
+test('after a turn he walks off to the pier, passing its signpost, and fishes there', async ($, on) => {
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits })
+  await $.turn.complete(DONE)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await wait(clock, 4800 + 160 * 30)
+  await t.unmount()
+  // A fresh mount goes through the engine's check that every cell is one printable column.
+  const midway = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  expect(rowText(await raster(midway), WIDE, 1)).toContain('→ Pier')
+  await wait(clock, 160 * 70)
+  expect(rowText(blits.at(-1)!, WIDE, 0)).toContain('waiting for you…')
+  await midway.unmount()
+})
+
+test('a minute idle he moves on to the campfire', async ($, on) => {
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits })
+  await $.turn.complete(DONE)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await wait(clock, 60_000 + 160 * 100)
+  expect(rowText(blits.at(-1)!, WIDE, 0)).toContain('idle · warming up')
+  await t.unmount()
+})
+
+test('compacting between turns takes him to the inn, where HP refills', async ($, on) => {
+  on('classic.PreCompact', () => ({}))
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits })
+  await $.turn.complete(DONE)
+  await $.classic.PreCompact({ trigger: 'manual', custom_instructions: null } as never)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await wait(clock, 4800 + 160 * 200)
+  expect(rowText(blits.at(-1)!, WIDE, 0)).toContain('z Z  ·  HP refilling')
+  await t.unmount()
+})
+
+test('a prompt while he rests: he packs up, then walks back to work', async ($, on) => {
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits })
+  await $.turn.complete(DONE)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await wait(clock, 4800 + 160 * 100)
+  await t.unmount()
+  await $.classic.UserPromptSubmit({ prompt: 'next' })
+  const working = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE, true) })
+  // The pier's shore is its first 12 columns: how many are still on screen says how far he has walked.
+  const shore = (cells: string) => Array.from({ length: 12 }, (_, x) => groundCell(cells, WIDE, x)).filter(c => c.split(' ')[1] === String(0x3a3a2a)).length
+  await wait(clock, 640)
+  const packing = blits.at(-1)!
+  expect(shore(packing)).toBe(12)
+  expect(rowText(packing, WIDE, 0)).not.toContain('waiting for you')
+  await wait(clock, 1200)
+  const a = shore(blits.at(-1)!)
+  await wait(clock, 160 * 4)
+  expect(a - shore(blits.at(-1)!)).toBe(4)
+  await working.unmount()
+})
+
+test('busy with tool calls, he hurries two pixels a frame', async ($, on) => {
+  on('tool.call', { tool: 'Read' }, () => ({ result: {} }) as never)
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits })
+  for (let i = 0; i < 3; i++) await $.tool.call({ tool: 'Read', file_path: 'C:/src/my-app/README.md' } as never)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE, true) })
+  await wait(clock, 320)
+  const a = blits.at(-1)!
+  await wait(clock, 160 * 4)
+  expect(Array.from({ length: 20 }, (_, x) => groundCell(blits.at(-1)!, WIDE, x))).toEqual(Array.from({ length: 20 }, (_, x) => groundCell(a, WIDE, x + 8)))
+  await t.unmount()
+})
+
+test('the task list shows as a quest line while he works', async ($, on) => {
+  on('classic.TaskCreated', () => ({}))
+  on('classic.TaskCompleted', () => ({}))
+  const blits: string[] = []
+  const { clock } = await turn($, on, { blits })
+  await $.classic.TaskCreated({ task_id: '1', task_subject: 'read the spec' } as never)
+  await $.classic.TaskCreated({ task_id: '2', task_subject: 'fix login' } as never)
+  await $.classic.TaskCompleted({ task_id: '1', task_subject: 'read the spec' } as never)
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE, true) })
+  expect(rowText(await raster(t), WIDE, 0)).toContain('☐ 1/2 fix login')
+  await clock.advance(160)
+  await t.unmount()
+})

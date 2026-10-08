@@ -2,12 +2,14 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { encodeCells } from './rpg/cells'
-import { NO_STORY, beatOf, step, withLevelUp } from './rpg/director'
+import { NO_STORY, step, withLevelUp } from './rpg/director'
 import type { HookPayload, Story } from './rpg/director'
 import { HIDDEN_BELOW, frame } from './rpg/frame'
 import { ROWS } from './rpg/grid'
 import { FRESH, gain, loadProgress } from './rpg/progress'
 import type { Award, Progress } from './rpg/progress'
+import { moveRoad } from './rpg/road'
+import type { Motion } from './rpg/road'
 import { statsFrom } from './rpg/stats'
 import type { Usage } from './rpg/stats'
 
@@ -25,7 +27,7 @@ const story = atom({ plugin: 'clawd-rpg', key: 'story' } as const, NO_STORY)
 let isReady = false
 let place = ''
 let progress: Progress = FRESH
-let road = { distance: 0, isWalking: false, frames: 0 }
+let road = { distance: 0, isWorking: false, frames: 0 }
 let painting: { requestId: string; width: number; painted: string } | null = null
 let frameTimer: { cancel: () => void } | null = null
 // A frame still on its way to the terminal: the next tick skips rather than piling blits up.
@@ -114,7 +116,8 @@ async function observeNow($: EngineInterface, event: string, payload: HookPayloa
   await ensureReady($)
   const now = await $.clock.now()
   const before = await storyNow($)
-  const { story: next, awards } = step(before, event, payload, now)
+  // Where he stands on the road is where a trip to the rest spots sets out from.
+  const { story: next, awards } = step(before, event, { ...payload, roadAt: Math.floor(road.distance) }, now)
   let told = next
   if (awards.length > 0) {
     const levelsUp = await earn($, awards)
@@ -127,15 +130,18 @@ async function observeNow($: EngineInterface, event: string, payload: HookPayloa
   }
 }
 
-async function cellsNow($: EngineInterface, width: number, now: number, isWalking: boolean): Promise<string> {
-  const s = await read($, stats)
-  return encodeCells(frame({ width, t: now, distance: road.distance, isWalking, stats: s, story: await storyNow($), trudge: s.mp <= 0 }))
+// He walks while Claude works and nothing stands in his way, and between turns heads for a rest spot.
+// `advance`: this is a frame of the timer, so the road moves; a redraw only looks.
+async function motionNow($: EngineInterface, width: number, now: number, advance: boolean): Promise<Motion> {
+  const frames = advance ? ++road.frames : road.frames
+  const motion = moveRoad(await storyNow($), now, road.distance, width, frames, road.isWorking, (await read($, stats)).mp <= 0)
+  if (advance) road.distance = motion.distance
+  return motion
 }
 
-// He walks while Claude works and nothing stands in his way; out of usage he moves every other frame.
-async function walkingNow($: EngineInterface, now: number): Promise<boolean> {
-  const beat = beatOf(await storyNow($), now)
-  return road.isWalking && (beat === 'walk' || beat === 'idle')
+async function cellsNow($: EngineInterface, width: number, now: number, motion: Motion): Promise<string> {
+  const s = await read($, stats)
+  return encodeCells(frame({ width, t: now, distance: road.distance, isWalking: motion.isWalking, stats: s, story: await storyNow($), trudge: s.mp <= 0, legMs: motion.legMs }))
 }
 
 async function paintFrame($: EngineInterface): Promise<void> {
@@ -144,10 +150,7 @@ async function paintFrame($: EngineInterface): Promise<void> {
   isBlitting = true
   try {
     const now = await $.clock.now()
-    const isWalking = await walkingNow($, now)
-    road.frames++
-    if (isWalking && ((await read($, stats)).mp > 0 || road.frames % 2 === 0)) road.distance += 1
-    const cells = await cellsNow($, p.width, now, isWalking)
+    const cells = await cellsNow($, p.width, now, await motionNow($, p.width, now, true))
     if (cells === p.painted) return
     p.painted = cells
     const blitted = await $.ui.blit({ requestId: p.requestId, key: RASTER_KEY, cells })
@@ -170,9 +173,9 @@ async function drawBand($: EngineInterface, e: BandEvent, next: (e: BandEvent) =
     if (e.surface === 'terminal') stopPainting()
     return next(e)
   }
-  road.isWalking = e.props.isWorking
+  road.isWorking = e.props.isWorking
   const now = await $.clock.now()
-  const cells = await cellsNow($, width, now, await walkingNow($, now))
+  const cells = await cellsNow($, width, now, await motionNow($, width, now, false))
   if (!painting || painting.requestId !== e.requestId || painting.width !== width) {
     stopPainting()
     painting = { requestId: e.requestId, width, painted: cells }
@@ -246,6 +249,19 @@ export const register: Register = on => {
   })
   on('classic.PostToolUseFailure', async ($, e, next) => {
     await quietly(observe($, 'PostToolUseFailure', e as never))
+    return next(e)
+  })
+  // A compaction between turns sends him to the inn; the director ignores one mid-turn.
+  on('classic.PreCompact', async ($, e, next) => {
+    await quietly(observe($, 'Compact', e as never))
+    return next(e)
+  })
+  on('classic.TaskCreated', async ($, e, next) => {
+    await quietly(observe($, 'TaskCreated', e as never))
+    return next(e)
+  })
+  on('classic.TaskCompleted', async ($, e, next) => {
+    await quietly(observe($, 'TaskCompleted', e as never))
     return next(e)
   })
   on('classic.Notification', async ($, e, next) => {
