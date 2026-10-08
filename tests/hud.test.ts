@@ -18,6 +18,21 @@ describe('hud', () => {
     expect(text(159)).toBe('Lv.7 ▰▰▰▱▱  HP ████░  MP ██░░')
     expect(text(120)).toBe('Lv.7 ▰▰▰▱▱  HP ████░  MP ██░░')
     expect(text(119)).toBe('Lv.7 ▰▰▰▱▱  HP ████░')
+    expect(text(100)).toBe('Lv.7 ▰▰▰▱▱  HP ████░')
+  })
+
+  test('the compact view trims it to level and HP', () => {
+    expect(text(99)).toBe('Lv.7  HP ████░')
+    expect(text(40)).toBe('Lv.7  HP ████░')
+  })
+
+  test('a place name the terminal cannot draw one cell wide is shown with ?', () => {
+    for (const place of ['我的项目/main', 'my-app/feat/🚀', 'café/main']) {
+      const shown = [...text(200, { ...S, place })]
+      for (const ch of shown) expect(ch.codePointAt(0)! <= 0x7e || (ch.codePointAt(0)! >= 0xc0 && ch.codePointAt(0)! < 0x250) || (GLYPHS as readonly string[]).includes(ch)).toBe(true)
+    }
+    expect(text(200, { ...S, place: 'café/main' })).toContain('café/main')
+    expect(text(200, { ...S, place: 'my-app/feat/🚀' })).toContain('my-app/feat/?')
   })
 
   test('it sits on the bottom row, right-aligned with two columns spare', () => {

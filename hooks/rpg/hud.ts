@@ -21,15 +21,18 @@ const bar = (on: string, off: string, n: number, frac: number) => {
   return on.repeat(k) + off.repeat(n - k)
 }
 const hpColor = (hp: number) => (hp > 0.5 ? 0x6bd46b : hp > 0.25 ? 0xe3b341 : 0xe5484d)
-const clip = (s: string) => ([...s].length > PLACE_MAX ? [...s].slice(0, PLACE_MAX - 1).join('') + CUT : s)
+// The engine refuses a whole Raster over one wide, emoji or combining character, and repo names can
+// hold any of them; ASCII and composed Latin letters are safe one-cell characters.
+const drawable = (s: string) => [...s.normalize('NFC')].map(ch => (/^[\x20-\x7eÀ-ɏ]$/.test(ch) ? ch : '?'))
+const clip = (s: string) => {
+  const chars = drawable(s)
+  return chars.length > PLACE_MAX ? chars.slice(0, PLACE_MAX - 1).join('') + CUT : chars.join('')
+}
 
 export function hudSegments(width: number, s: RpgStats): [string, number][] {
-  const segs: [string, number][] = [
-    [`Lv.${s.level} `, GOLD],
-    [bar(ON, OFF, 5, s.exp), ORANGE],
-    ['  HP ', MUTED],
-    [bar(FULL, EMPTY_BAR, 5, s.hp), hpColor(s.hp)],
-  ]
+  const segs: [string, number][] =
+    width >= 100 ? [[`Lv.${s.level} `, GOLD], [bar(ON, OFF, 5, s.exp), ORANGE]] : [[`Lv.${s.level}`, GOLD]]
+  segs.push(['  HP ', MUTED], [bar(FULL, EMPTY_BAR, 5, s.hp), hpColor(s.hp)])
   if (width >= 120) segs.push(['  MP ', MUTED], [bar(FULL, EMPTY_BAR, 4, s.mp), MP_BLUE])
   if (width >= 160 && s.place) segs.push([`  ${FLAG} ${clip(s.place)}`, MUTED])
   return segs

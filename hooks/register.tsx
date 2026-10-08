@@ -84,7 +84,8 @@ type BandEvent = Parameters<EngineInterface['ui']['resolve']>[0] & {
 async function drawBand($: EngineInterface, e: BandEvent, next: (e: BandEvent) => unknown) {
   const width = Math.min(512, e.props.bodyColumns)
   if (e.props.hasSurvey || e.surface !== 'terminal' || width < HIDDEN_BELOW || (await read($, isHidden))) {
-    stopPainting()
+    // The desktop or a phone redrawing must not freeze the terminal's band.
+    if (e.surface === 'terminal') stopPainting()
     return next(e)
   }
   const now = await $.clock.now()
@@ -121,8 +122,11 @@ export const register: Register = on => {
     await ensureReady($).catch(() => undefined)
     return next(e)
   })
+  // Claude switches branches mid-session, so the HUD's place is re-read at every prompt.
   on('classic.UserPromptSubmit', async ($, e, next) => {
-    await ensureReady($).catch(() => undefined)
+    await ensureReady($)
+      .then(() => refreshPlace($))
+      .catch(() => undefined)
     return next(e)
   })
   on('command.run', { command: 'rpg' }, async $ => ({ text: await toggle($) }))
