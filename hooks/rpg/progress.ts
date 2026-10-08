@@ -3,8 +3,8 @@ import type { ZoneId } from '../../types'
 export type { ZoneId }
 
 export type AwardKind = 'battle' | 'elite' | 'raid' | 'turn'
-// `boss`: the raid was the zone's boss, which clears the zone.
-export type Award = { kind: AwardKind; foe?: string; boss?: true }
+// `boss`: the raid was the boss of `zone`, which clears it, unless another session already has.
+export type Award = { kind: AwardKind; foe?: string; boss?: true; zone?: ZoneId }
 
 // `exp` is what he has towards the next level, not a lifetime total.
 export type Progress = {
@@ -70,7 +70,8 @@ export function gain(p: Progress, award: Award): { progress: Progress; levelsUp:
   const won = award.kind === 'battle' || award.kind === 'elite'
   const bestiary = award.foe ? { ...p.bestiary, [award.foe]: (p.bestiary[award.foe] ?? 0) + 1 } : p.bestiary
   const next: Progress = { ...p, exp, level, unlocked: unlockedAt(level), zoneMeter: won ? Math.min(ZONE_BATTLES, p.zoneMeter + 1) : p.zoneMeter, bestiary }
-  return { progress: award.boss ? { ...next, zone: nextZone(next), zoneMeter: 0 } : next, levelsUp: level - p.level }
+  const clears = award.boss && (award.zone ?? p.zone) === p.zone
+  return { progress: clears ? { ...next, zone: nextZone(next), zoneMeter: 0 } : next, levelsUp: level - p.level }
 }
 
 export const bossDue = (p: Progress) => p.zoneMeter >= ZONE_BATTLES

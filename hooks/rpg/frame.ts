@@ -40,6 +40,7 @@ export const HIDDEN_BELOW = 40
 // Clawd swings from this far left of the foe, so the sword's arc lands on it.
 const REACH = 22
 const PARTY_TEXT = 0x8fb8ff
+const DROP_MS = 400
 
 // Non-ASCII characters the road may write; each must be one cell wide (tests check them).
 export const ROAD_GLYPHS = ['→', '☐', '…', '★'] as const
@@ -166,12 +167,14 @@ function drawParty(g: Grid, s: Scene, beat: Beat, anchor: number): boolean {
   let said: { label: string; x: number; at: number } | null = null
   for (const [i, m] of shown.entries()) {
     const x = anchor - (MINI_REACH + 1) * (shown.length - i)
-    const y = Math.round(lerp(-8, 4, easeOut(through(t, m.at, 400))))
+    const y = Math.round(lerp(-8, 4, easeOut(through(t, m.at, DROP_MS))))
     const acting = story.skill?.by === m.id && t >= story.skill.at && t - story.skill.at < SKILL_MS
     const step = s.isWalking && beat === 'walk' && on(t + i * 160, LEG_STEP_MS)
     mini(g, x, y, m.cls, { cheer: beat === 'victory', step, glow: acting })
     if (acting && story.skill) classAttack(g, m.cls, x, fx, t - story.skill.at)
-    const news = acting && story.skill ? { label: story.skill.name, at: story.skill.at } : t >= m.at && t - m.at < SKILL_MS ? { label: `${m.cls.toUpperCase()} JOINS!`, at: m.at } : null
+    // Named once it has landed: dropping in, it passes through the label's row.
+    const landed = m.at + DROP_MS
+    const news = acting && story.skill ? { label: story.skill.name, at: story.skill.at } : t >= landed && t - landed < SKILL_MS ? { label: `${m.cls.toUpperCase()} JOINS!`, at: landed } : null
     if (news && (!said || news.at >= said.at)) said = { ...news, x }
   }
   if (said) write(g, Math.max(0, Math.min(said.x, anchor - 2 - said.label.length)), 0, said.label, PARTY_TEXT)

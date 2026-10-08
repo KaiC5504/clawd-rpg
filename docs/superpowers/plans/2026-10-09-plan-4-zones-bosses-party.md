@@ -145,10 +145,64 @@ the campfire.
 
 **Tests (mod):** a full meter makes the next turn a boss turn, and finishing it saves zone `dungeon`
 at Lv.3 with the meter at 0, then walks him through a gate; a SubagentStart draws a mini Clawd;
-a rejected edit (tool.call deny) no longer lands a hit.
+a party turn pays the raid.
 
 ---
 
 ## Decisions made without KaiC
 
-Filled in as they're made, with the cost if he'd have chosen differently.
+Each with what it costs if he'd have chosen differently.
+
+1. **Party skills are called out over the member's head, not in a red/blue cut-in banner.** A cut-in
+   slides across exactly where the party stands and hid them. Clawd's own skills keep the cut-in.
+   Cost: a different look for party attacks.
+2. **The gate names the zone on its lintel (`DUNGEON`), not with a signpost.** A signpost before the
+   gate would sit on Clawd at the moment the gate first shows. Cost: one label's placement.
+3. **A boss has 6 HP, but a finished turn brings it down like any foe.** A turn with no edits never
+   meets it; an interrupt lets it flee and it comes back next turn. Cost: bosses are easy; HP 6 is
+   mostly for show.
+4. **A turn with a party is a raid (+60), and a boss is a raid (+60), so a boss turn with a party
+   pays both.** The spec's "raid/boss +60" read literally. Cost: levels come faster with subagents.
+5. **A subagent only fights if it was seen starting this turn.** One left running from an earlier
+   turn doesn't join or hit (and can't farm a raid every turn).
+   Cost: background agents from earlier turns are invisible.
+6. **Calls are observed from `tool.call` (which says which subagent made one) instead of
+   `classic.PreToolUse`.** Both fire before the permission prompt, so a rejected edit still lands a
+   hit, as before. Cost: if `tool.call` misses some call the classic event saw, that call doesn't
+   fight.
+7. **At the ramen stall he sits still (no leaning out):** leaning would put his eyes behind the
+   counter. Cost: a little less life at that spot.
+8. **A zone changed by another session is picked up at the next prompt, with a gate ahead of him.**
+   Progress is re-read at every prompt (which also brings in other sessions' levels).
+   Cost: none seen.
+9. **Bosses are 9 px tall with their health along the top row, and the top-left reads
+   `★ BOSS · TREANT` during the fight** (it replaces the quest line then). Cost: the quest line hides
+   for a boss fight.
+10. **Party art:** knight (helmet, plume, shield), mage (hat, staff), scout (hood, feather, bow),
+    gear never on the body and no higher than pixel row 2, so captions never cover it. At most the
+    three most recent members are drawn.
+11. **New foes and places are drawn fresh in the sketchbook's style** (slime, skeleton, drone, glitch
+    bug, Treant, Merge Hydra, Mech; brick dungeon with torches, neon towers with rain, crystal room,
+    ramen stall, stone portal). Cost: art tweaks.
+
+## Final review (fresh reviewer, Opus)
+
+Fixed, each with a test that failed first:
+- A gate placed at a prompt could end up inside the next trip's pier: at a turn's end, a gate still
+  ahead of him moves to just past him (`gateClear`). Test: road "a gate and the next trip".
+- Two sessions beating the same boss cleared the next zone unfought: a boss award names its zone and
+  only clears it if the save is still there. Test: progress "a boss from a zone another session
+  already cleared".
+- A background subagent from an earlier turn joined as a mage and paid a raid every turn: unknown
+  subagents neither join nor fight. Test: director "a subagent never seen to start".
+- "X JOINS!" was written over the mini while it dropped in: it waits until the mini has landed.
+  Test: frame "no text sits on a mini Clawd".
+
+Deferred minors:
+- A user's own SubagentStop hook that blocks the stop makes the member's attack land early (the
+  subagent's own `turn.complete` would be the exact moment).
+- A `turn.complete` with no prompt before it can put a gate far behind him.
+- Foes beaten after a boss falls mid-turn count towards the next zone's meter.
+- No mod test of a `tool.call` carrying `agentId` (the harness runs calls on the main loop); no frame
+  moment of a boss and a party together (probed by hand: clean).
+- `★ → ☐ …` are East-Asian ambiguous width: may draw two cells wide in CJK-wide terminals.

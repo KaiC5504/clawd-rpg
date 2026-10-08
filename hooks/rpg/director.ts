@@ -104,7 +104,7 @@ export function lootName(files: Record<string, number>, lastFoe: FoeKind | null,
 function defeat(s: Story, foe: Foe, now: number, finisher: boolean, awards: Award[]): Story {
   const down = { kind: foe.kind, at: now, finisher }
   if (foe.boss) {
-    awards.push({ kind: 'raid', foe: foe.kind, boss: true })
+    awards.push({ kind: 'raid', foe: foe.kind, boss: true, zone: s.zone ?? 'forest' })
     return { ...s, foe: null, down, turn: { ...s.turn, gained: s.turn.gained + EXP.raid, bossDown: foe.kind } }
   }
   const kind = foe.elite ? 'elite' : 'battle'
@@ -196,13 +196,9 @@ function completed(tasks: QuestTask[], id: string, subject: string): QuestTask[]
   return tasks.map(task => (task.id === id ? { ...task, status: 'completed' } : task))
 }
 
-// A subagent seen for the first time by one of its calls joins as it would have at its start.
-function joined(s: Story, id: string, agentType: string, now: number): { story: Story; member: Member } {
+function joined(s: Story, id: string, agentType: string, now: number): Story {
   const party = s.party ?? []
-  const member = party.find(m => m.id === id)
-  if (member) return { story: s, member }
-  const fresh: Member = { id, cls: classOf(agentType), at: now, doneAt: null }
-  return { story: { ...s, party: [...party, fresh] }, member: fresh }
+  return party.some(m => m.id === id) ? s : { ...s, party: [...party, { id, cls: classOf(agentType), at: now, doneAt: null }] }
 }
 
 // Session events in, the story out, plus the deeds that earn EXP.
@@ -240,8 +236,9 @@ export function step(s: Story, event: string, payload: HookPayload, now: number)
         const opened: Story = { ...s, calls: { ...s.calls, [id]: work }, tasks: agent ? s.tasks : plan(s.tasks, tool, input), turn: { ...s.turn, recent } }
         const path = str(input.file_path) || str(input.notebook_path)
         if (!agent) return attack(opened, work, path, now, awards, null)
-        const { story: withMember, member } = joined(opened, agent, str(payload.agent_type), now)
-        return attack(withMember, work, path, now, awards, member)
+        // One left running from an earlier turn never joined this one: its calls aren't this fight's.
+        const member = (s.party ?? []).find(m => m.id === agent)
+        return member ? attack(opened, work, path, now, awards, member) : opened
       }
       case 'PostToolUse':
         return settle(s, payload, false, now, awards)
@@ -261,7 +258,7 @@ export function step(s: Story, event: string, payload: HookPayload, now: number)
       case 'SubagentStart': {
         const id = str(payload.agent_id)
         if (!s.turn.active || !id) return s
-        return joined(s, id, str(payload.agent_type), now).story
+        return joined(s, id, str(payload.agent_type), now)
       }
       // Its work done, the member's class attack lands.
       case 'SubagentStop': {

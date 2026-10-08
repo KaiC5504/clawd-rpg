@@ -314,20 +314,20 @@ describe('bosses', () => {
 
   test('six blows bring it down: a raid that clears the zone, and the foes after it are ordinary', () => {
     const { story, awards } = play([bossPrompt(), ...Array.from({ length: 6 }, () => edit()), edit()])
-    expect(awards).toContainEqual({ kind: 'raid', foe: 'treant', boss: true })
+    expect(awards).toContainEqual({ kind: 'raid', foe: 'treant', boss: true, zone: 'forest' })
     expect(story.turn.bossDown).toBe('treant')
     expect(['goblin', 'shroom']).toContain(story.foe?.kind)
   })
 
   test("a passing run finishes the boss, and the victory's loot is the boss's", () => {
     const { story, awards } = play([bossPrompt(), edit(), tests(), testsFailed(2), edit(), tests(), testsPassed(), done])
-    expect(awards).toContainEqual({ kind: 'raid', foe: 'treant', boss: true })
+    expect(awards).toContainEqual({ kind: 'raid', foe: 'treant', boss: true, zone: 'forest' })
     expect(story.victory?.loot).toBe('Treant Heartwood')
   })
 
   test('the boss still standing when the turn is done falls too', () => {
     const { awards } = play([['SessionStart', { source: 'startup', zone: 'dungeon' }], bossPrompt('dungeon'), edit(), done])
-    expect(awards).toContainEqual({ kind: 'raid', foe: 'hydra', boss: true })
+    expect(awards).toContainEqual({ kind: 'raid', foe: 'hydra', boss: true, zone: 'dungeon' })
   })
 
   test('an interrupt lets the boss flee, and the next boss prompt brings it back', () => {
@@ -369,6 +369,13 @@ describe('the party', () => {
     const { story, at } = play([prompt, joins('a1', 'Explore'), theirs('a1', 'Edit', { file_path: 'D:/a/x.ts' })])
     expect(story.skill).toEqual({ name: 'QUICK SHOT', at, party: true, by: 'a1' })
     expect(story.foe).not.toBeNull()
+  })
+
+  test('a subagent never seen to start (one left running from an earlier turn) neither joins nor fights', () => {
+    const { story, awards } = play([prompt, theirs('old', 'Edit', { file_path: 'D:/a/x.ts' }), done])
+    expect(story.party).toEqual([])
+    expect(story.turn.foes).toBe(0)
+    expect(awards).toEqual([{ kind: 'turn' }])
   })
 
   test("a subagent's reads and plans don't fight or replace the quest", () => {

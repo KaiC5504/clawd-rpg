@@ -101,6 +101,11 @@ describe('bosses and zones', () => {
     expect(nextZone({ ...full(4), zone: 'dungeon' })).toBe('forest')
   })
 
+  test('a boss from a zone another session already cleared pays, but clears nothing more', () => {
+    const { progress } = gain({ ...full(6), zone: 'dungeon', zoneMeter: 4 }, { kind: 'raid', foe: 'treant', boss: true, zone: 'forest' })
+    expect([progress.zone, progress.zoneMeter, progress.exp]).toEqual(['dungeon', 4, 65])
+  })
+
   test("a party's raid pays the same but clears nothing", () => {
     const { progress } = gain(full(3), { kind: 'raid' })
     expect([progress.zone, progress.zoneMeter]).toEqual(['forest', ZONE_BATTLES])

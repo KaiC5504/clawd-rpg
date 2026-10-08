@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { NO_STORY } from '../hooks/rpg/director'
 import type { Story, Trip } from '../hooks/rpg/director'
-import { DOZE_MS, PACK_MS, SLEEP_MS, camOf, gateAt, goalOf, moveRoad, placeAt, placeWidth, reanchor, restOf, spotsOf, stopsOf, zoneAt } from '../hooks/rpg/road'
+import { DOZE_MS, PACK_MS, SLEEP_MS, camOf, gateAt, goalOf, moveRoad, placeAt, placeWidth, reanchor, restOf, spotsOf, stopsOf, gateClear, zoneAt } from '../hooks/rpg/road'
 
 const T0 = 1_000_000
 const W = 179
@@ -164,5 +164,21 @@ describe('zones on the road', () => {
     expect(gateAt(story, T0, W, 1000 + pw - 5)).toBe(1000 + 2 * pw + 2)
     expect(gateAt(story, T0, W, 1000 + pw + 40)).toBe(1000 + 2 * pw + 2)
     expect(gateAt(story, T0 + DOZE_MS, W, 1000 + pw + 40)).toBe(1000 + 3 * pw + 2)
+  })
+})
+
+describe('a gate and the next trip', () => {
+  test("a gate ahead of where a turn ended moves to just past him, clear of the new trip's pier", () => {
+    const pw = placeWidth(W)
+    const ended: Story = { ...NO_STORY, zone: 'dungeon', trip: trip({ origin: 1000, zone: 'dungeon' }), gate: { x: 1000 + 12, from: 'forest' } }
+    expect(gateClear(ended, T0, W).gate).toEqual({ x: 1066, from: 'forest' })
+    expect(gateClear({ ...ended, gate: { x: 1000 + pw - 3, from: 'forest' } }, T0, W).gate).toEqual({ x: 1066, from: 'forest' })
+  })
+
+  test('a gate he has passed, or none at all, stays as it is', () => {
+    const behind: Story = { ...NO_STORY, trip: trip({ origin: 1000 }), gate: { x: 900, from: 'forest' } }
+    expect(gateClear(behind, T0, W)).toBe(behind)
+    const none: Story = { ...NO_STORY, trip: trip() }
+    expect(gateClear(none, T0, W)).toBe(none)
   })
 })

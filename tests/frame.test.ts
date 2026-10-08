@@ -440,8 +440,20 @@ describe('zones, bosses and the party on screen', () => {
       expect(textRow(g, 0)).toContain(label)
       expect(textRow(g, 2).trim()).toBe('')
     }
-    const joining = first('party', 179, 2000 + 300)
+    const joining = first('party', 179, 2000 + 500)
     expect(textRow(frame(joining), 0)).toContain('KNIGHT JOINS!')
+  })
+
+  test('no text sits on a mini Clawd, even while it drops in', () => {
+    const m = moment('party')
+    for (let dt = 0; dt < 3000; dt += 40) {
+      const g = frame(sceneOf(m, 179, m.times[0]! + dt))
+      for (const key of g.text.keys()) {
+        const x = key % 179
+        const row = Math.floor(key / 179)
+        for (const y of [2 * row, 2 * row + 1]) if (at(g, x, y) === ORANGE) throw new Error(`t+${dt}: text on orange at ${x},${y}`)
+      }
+    }
   })
 
   test('a boss victory names the boss loot', () => {

@@ -102,6 +102,14 @@ export function gateAt(story: Story, now: number, width: number, x: number): num
   return at
 }
 
+// A turn ended short of a gate placed earlier: it moves to just past him, so the new trip's spots
+// never stand on it.
+export function gateClear(story: Story, now: number, width: number): Story {
+  const { gate, trip } = story
+  if (!gate || !trip || gate.x < trip.origin) return story
+  return { ...story, gate: { ...gate, x: gateAt({ ...story, gate: null }, now, width, trip.origin + GATE_AFTER) } }
+}
+
 export type Rest = { kind: RestKind; phase: 'travel' | 'rest' | 'pack'; since: number }
 
 // What resting looks like now: on his way to a spot, there, or packing up after a prompt.

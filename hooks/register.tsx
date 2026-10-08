@@ -8,7 +8,7 @@ import { HIDDEN_BELOW, frame } from './rpg/frame'
 import { ROWS } from './rpg/grid'
 import { FRESH, bossDue, gain, loadProgress } from './rpg/progress'
 import type { Award, Progress } from './rpg/progress'
-import { GATE_AFTER, GATE_AHEAD, gateAt, moveRoad, reanchor } from './rpg/road'
+import { GATE_AFTER, GATE_AHEAD, gateAt, gateClear, moveRoad, reanchor } from './rpg/road'
 import type { Motion } from './rpg/road'
 import { statsFrom } from './rpg/stats'
 import type { Usage } from './rpg/stats'
@@ -134,6 +134,8 @@ async function observeNow($: EngineInterface, event: string, payload: HookPayloa
   if ((event === 'TurnEnded' || event === 'UserPromptSubmit') && told.zone !== progress.zone) {
     const from = event === 'TurnEnded' && told.trip ? told.trip.origin + GATE_AFTER : roadAt + GATE_AHEAD
     told = passGate(told, progress.zone, gateAt(told, now, road.width || USUAL_WIDTH, from))
+  } else if (event === 'TurnEnded') {
+    told = gateClear(told, now, road.width || USUAL_WIDTH)
   }
   if (told !== before) await update($, story, () => told)
   if (event === 'TurnEnded' && Math.floor(road.distance) !== progress.roadPos) {
