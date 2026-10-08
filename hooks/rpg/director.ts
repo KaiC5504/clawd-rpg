@@ -1,10 +1,10 @@
-import type { Foe, FoeKind, Story, Work, WorkKind } from '../../types'
+import type { Foe, FoeKind, QuestTask, Story, Trip, Work, WorkKind } from '../../types'
 import { classifyCall, settleCall } from '../plumbing/work'
 import { noise } from './noise'
 import { EXP } from './progress'
 import type { Award } from './progress'
 
-export type { Foe, FoeKind, Story }
+export type { Foe, FoeKind, QuestTask, Story, Trip }
 export type HookPayload = Record<string, unknown>
 export type Beat = 'walk' | 'idle' | 'encounter' | 'enemyTurn' | 'finisher' | 'victory' | 'flee'
 
@@ -32,7 +32,7 @@ const TROPHY: Record<FoeKind, string> = { goblin: 'Goblin Fang', shroom: 'Glow C
 const LOOT_WORDS = ['Blade', 'Tome', 'Charm', 'Sigil'] as const
 
 export const NO_STORY: Story = {
-  turn: { active: false, at: 0, files: {}, gained: 0, foes: 0 },
+  turn: { active: false, at: 0, files: {}, gained: 0, foes: 0, recent: [] },
   foe: null,
   skill: null,
   down: null,
@@ -42,6 +42,9 @@ export const NO_STORY: Story = {
   levelUp: null,
   calledAt: null,
   calls: {},
+  trip: null,
+  trail: null,
+  tasks: [],
 }
 
 const str = (value: unknown) => (typeof value === 'string' ? value : '')
@@ -114,6 +117,31 @@ function endTurn(s: Story, reason: string, now: number, awards: Award[]): Story 
   return { ...won, turn: { ...won.turn, gained }, victory: { at: now, loot: lootName(won.turn.files, won.down?.kind ?? null), gained } }
 }
 
+const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
+const restFrom = (roadAt: unknown, now: number): Trip => ({ origin: num(roadAt), at: now, compactAt: null, leftAt: null })
+
+const taskStatus = (value: unknown): QuestTask['status'] => (value === 'completed' || value === 'in_progress' ? value : 'pending')
+
+// TodoWrite hands over the whole list; TaskUpdate moves one task along, or deletes it.
+function plan(tasks: QuestTask[], tool: string, input: HookPayload): QuestTask[] {
+  if (tool === 'TodoWrite' && Array.isArray(input.todos)) {
+    return (input.todos as HookPayload[]).map((todo, i) => ({ id: `todo-${i}`, subject: str(todo.content), status: taskStatus(todo.status) }))
+  }
+  if (tool !== 'TaskUpdate') return tasks
+  const id = str(input.taskId)
+  if (input.status === 'deleted') return tasks.filter(task => task.id !== id)
+  return tasks.map(task => (task.id !== id ? task : { ...task, subject: str(input.subject) || task.subject, status: input.status === undefined ? task.status : taskStatus(input.status) }))
+}
+
+function created(tasks: QuestTask[], id: string, subject: string): QuestTask[] {
+  return !id || tasks.some(task => task.id === id) ? tasks : [...tasks, { id, subject, status: 'pending' }]
+}
+
+function completed(tasks: QuestTask[], id: string, subject: string): QuestTask[] {
+  if (!tasks.some(task => task.id === id)) return [...tasks, { id, subject, status: 'completed' }]
+  return tasks.map(task => (task.id === id ? { ...task, status: 'completed' } : task))
+}
+
 // Session events in, the story out, plus the deeds that earn EXP.
 export function step(s: Story, event: string, payload: HookPayload, now: number): { story: Story; awards: Award[] } {
   const awards: Award[] = []
@@ -121,24 +149,41 @@ export function step(s: Story, event: string, payload: HookPayload, now: number)
     switch (event) {
       // A compaction happens mid-turn: the fight goes on through it.
       case 'SessionStart':
-        return payload.source === 'compact' ? s : NO_STORY
+        return payload.source === 'compact' ? s : { ...NO_STORY, trip: restFrom(payload.roadAt, now) }
       case 'UserPromptSubmit':
-        return { ...NO_STORY, levelUp: s.levelUp, turn: { active: true, at: now, files: {}, gained: 0, foes: 0 } }
+        return {
+          ...NO_STORY,
+          levelUp: s.levelUp,
+          tasks: s.tasks,
+          trip: s.trip && { ...s.trip, leftAt: s.trip.leftAt ?? now },
+          trail: s.trail,
+          turn: { active: true, at: now, files: {}, gained: 0, foes: 0, recent: [] },
+        }
       case 'PreToolUse': {
         // Background work after the turn has ended has no turn to close its fight.
         if (!s.turn.active) return s
         const input = typeof payload.tool_input === 'object' && payload.tool_input !== null ? (payload.tool_input as HookPayload) : {}
         const id = str(payload.tool_use_id)
         const work = classifyCall(str(payload.tool_name), input, id, now)
-        const opened = { ...s, calls: { ...s.calls, [id]: work } }
+        const recent = [...(s.turn.recent ?? []), now].slice(-3)
+        const opened = { ...s, calls: { ...s.calls, [id]: work }, tasks: plan(s.tasks, str(payload.tool_name), input), turn: { ...s.turn, recent } }
         return attack(opened, work, str(input.file_path) || str(input.notebook_path), now, awards)
       }
       case 'PostToolUse':
         return settle(s, payload, false, now, awards)
       case 'PostToolUseFailure':
         return settle(s, payload, true, now, awards)
-      case 'TurnEnded':
-        return endTurn(s, str(payload.reason), now, awards)
+      case 'TurnEnded': {
+        const ended = endTurn(s, str(payload.reason), now, awards)
+        return ended === s ? s : { ...ended, trip: restFrom(payload.roadAt, now), trail: s.trip }
+      }
+      // A compaction between turns sends him to the inn; one mid-turn leaves the fight be.
+      case 'Compact':
+        return !s.turn.active && s.trip && s.trip.leftAt === null && s.trip.compactAt === null ? { ...s, trip: { ...s.trip, compactAt: now } } : s
+      case 'TaskCreated':
+        return { ...s, tasks: created(s.tasks, str(payload.task_id), str(payload.task_subject)) }
+      case 'TaskCompleted':
+        return { ...s, tasks: completed(s.tasks, str(payload.task_id), str(payload.task_subject)) }
       case 'Notification':
       case 'Elicitation':
         return { ...s, calledAt: now }
@@ -147,6 +192,14 @@ export function step(s: Story, event: string, payload: HookPayload, now: number)
     }
   })()
   return { story, awards }
+}
+
+// `☐ 2/5 fix login`: the task list as a quest, led by the task in progress, or the next one up.
+export function questOf(s: Story): string | null {
+  const tasks = s.tasks ?? []
+  const done = tasks.filter(task => task.status === 'completed').length
+  const next = tasks.find(task => task.status === 'in_progress') ?? tasks.find(task => task.status === 'pending')
+  return next ? `☐ ${done}/${tasks.length} ${next.subject}` : null
 }
 
 export const withLevelUp = (s: Story, level: number, now: number): Story => ({ ...s, levelUp: { level, at: now } })

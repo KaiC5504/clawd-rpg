@@ -9,6 +9,7 @@ import {
   VICTORY_MS,
   beatOf,
   lootName,
+  questOf,
   step,
   withLevelUp,
 } from '../hooks/rpg/director'
@@ -165,5 +166,93 @@ describe('everything else', () => {
   test('the same events always tell the same story', () => {
     const events = [prompt, edit(), edit(), tests(), testsFailed(1), done]
     expect(play(events).story).toEqual(play(events).story)
+  })
+})
+
+const ended = (roadAt: number, reason = 'answer'): [string, HookPayload] => ['TurnEnded', { reason, roadAt }]
+
+describe('resting between turns', () => {
+  test('a finished turn starts a trip from where he stopped on the road', () => {
+    const { story, at } = play([prompt, edit(), ended(340)])
+    expect(story.trip).toEqual({ origin: 340, at, compactAt: null, leftAt: null })
+  })
+
+  test('an interrupted turn sends him resting too', () => {
+    expect(play([prompt, edit(), ended(12, 'aborted')]).story.trip?.origin).toBe(12)
+  })
+
+  test('a new session starts him resting where the road left off', () => {
+    expect(step(NO_STORY, 'SessionStart', { source: 'startup', roadAt: 90 }, T0).story.trip).toEqual({ origin: 90, at: T0, compactAt: null, leftAt: null })
+  })
+
+  test('a prompt calls him back: the trip is left, and kept for the road behind him', () => {
+    const { story, at } = play([['SessionStart', { source: 'startup', roadAt: 0 }], prompt])
+    expect(story.trip).toMatchObject({ origin: 0, leftAt: at })
+    expect(story.turn.active).toBe(true)
+  })
+
+  test("the next turn's trip starts where he stopped, and the last one becomes the trail", () => {
+    const { story } = play([['SessionStart', { source: 'startup', roadAt: 0 }], prompt, edit(), ended(500)])
+    expect(story.trail).toMatchObject({ origin: 0 })
+    expect(story.trip).toMatchObject({ origin: 500, leftAt: null })
+  })
+
+  test('compacting while he rests sends him on to the inn, once', () => {
+    const { story } = play([prompt, ended(0), ['Compact', {}], ['Compact', {}]])
+    expect(story.trip?.compactAt).toBe(T0 + 3000)
+  })
+
+  test('compacting mid-turn changes nothing', () => {
+    const { story } = play([prompt, edit()])
+    expect(step(story, 'Compact', {}, T0 + 9000).story).toBe(story)
+  })
+})
+
+describe('the quest line', () => {
+  const created = (id: string, subject: string): [string, HookPayload] => ['TaskCreated', { task_id: id, task_subject: subject }]
+  const completed = (id: string): [string, HookPayload] => ['TaskCompleted', { task_id: id, task_subject: '' }]
+
+  test('created and completed tasks make the quest line: done of total, then the next one up', () => {
+    const { story } = play([prompt, created('1', 'read the spec'), created('2', 'fix login'), created('3', 'ship it'), completed('1')])
+    expect(questOf(story)).toBe('☐ 1/3 fix login')
+  })
+
+  test('TodoWrite hands over the whole list, and the task in progress leads', () => {
+    const todos = [
+      { content: 'read the spec', status: 'completed' },
+      { content: 'add tests', status: 'pending' },
+      { content: 'fix login', status: 'in_progress' },
+    ]
+    expect(questOf(play([prompt, pre('TodoWrite', { todos })]).story)).toBe('☐ 1/3 fix login')
+  })
+
+  test('TaskUpdate moves a task along, and deleting one drops it', () => {
+    const { story } = play([
+      prompt,
+      created('1', 'a'),
+      created('2', 'b'),
+      pre('TaskUpdate', { taskId: '2', status: 'in_progress' }),
+      pre('TaskUpdate', { taskId: '1', status: 'deleted' }),
+    ])
+    expect(questOf(story)).toBe('☐ 0/1 b')
+  })
+
+  test('with no tasks, or all of them done, there is no quest line', () => {
+    expect(questOf(NO_STORY)).toBeNull()
+    expect(questOf(play([prompt, created('1', 'a'), completed('1')]).story)).toBeNull()
+  })
+
+  test('tasks outlast a prompt but not a new session', () => {
+    const { story } = play([prompt, created('1', 'a'), prompt])
+    expect(questOf(story)).toBe('☐ 0/1 a')
+    expect(questOf(step(story, 'SessionStart', { source: 'clear' }, T0 + 9000).story)).toBeNull()
+  })
+})
+
+describe('pace', () => {
+  test('the last three tool calls are remembered, and a prompt forgets them', () => {
+    const { story, at } = play([prompt, edit(), edit(), edit(), edit()])
+    expect(story.turn.recent).toEqual([at - 2000, at - 1000, at])
+    expect(step(story, 'UserPromptSubmit', {}, at + 1).story.turn.recent).toEqual([])
   })
 })

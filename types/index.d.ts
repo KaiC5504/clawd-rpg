@@ -25,9 +25,19 @@ export type FoeKind = 'goblin' | 'shroom'
 // `at` is when it dropped in; `hitAt` the last blow it took.
 export type Foe = { kind: FoeKind; hp: number; maxHp: number; elite: boolean; at: number; hitAt: number }
 
+export type RestKind = 'pier' | 'camp' | 'inn'
+
+// A trip to the rest spots, which stand one band apart past `origin` (road pixels, where he stopped).
+// `at`: when he went idle; `compactAt`: a compaction that sends him on to the inn; `leftAt`: the
+// prompt that called him back.
+export type Trip = { origin: number; at: number; compactAt: number | null; leftAt: number | null }
+
+export type QuestTask = { id: string; subject: string; status: 'pending' | 'in_progress' | 'completed' }
+
 // The battle on the band, moved on by session events (hooks/rpg/director.ts). Times are clock ms.
 export type Story = {
-  turn: { active: boolean; at: number; files: Record<string, number>; gained: number; foes: number }
+  // `recent`: when the turn's last three tool calls started, which sets his pace.
+  turn: { active: boolean; at: number; files: Record<string, number>; gained: number; foes: number; recent: number[] }
   foe: Foe | null
   skill: { name: string; at: number } | null
   down: { kind: FoeKind; at: number; finisher: boolean } | null
@@ -38,6 +48,10 @@ export type Story = {
   calledAt: number | null
   // Calls still running, by tool_use_id, so each settles once however many hooks report it.
   calls: Record<string, Work>
+  // The trip he is on, and the one before it, still drawn while it scrolls away behind him.
+  trip: Trip | null
+  trail: Trip | null
+  tasks: QuestTask[]
 }
 
 declare module 'claude-code' {
