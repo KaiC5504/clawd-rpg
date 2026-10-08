@@ -12,7 +12,8 @@ export type Pose = {
   armR?: number
   top?: number
   dx?: number
-  step?: boolean
+  // Which pair of legs is off the ground: 'odd' is his first and third from the left, 'even' the others.
+  lift?: 'odd' | 'even'
   face?: 'eyes' | 'shut' | 'happy'
   fx?: number
   fy?: number
@@ -35,8 +36,7 @@ export function clawd(g: Grid, x: number, y: number, o: Pose = {}): void {
     return
   }
   const top = o.top ?? 6
-  // Mid-stride his back leg steps onto the one beside it and his front leg steps back.
-  for (const lx of o.step ? [4, 5, 8, 11] : [3, 5, 9, 11]) rect(g, x + lx, y + 7, 1, 2, ORANGE)
+  for (const [i, lx] of [3, 5, 9, 11].entries()) rect(g, x + lx, y + 7, 1, o.lift === (i % 2 === 0 ? 'odd' : 'even') ? 1 : 2, ORANGE)
   rect(g, x + 2 + dx, y + top - 6, 11, 13 - top, ORANGE)
   rect(g, x + dx, y + (o.armL ?? 9) - 6, 2, 2, ORANGE)
   rect(g, x + 13 + dx, y + (o.armR ?? 9) - 6, 2, 2, ORANGE)
@@ -72,10 +72,19 @@ export const POSES = {
   sitOut: { sit: true, top: 10 },
 } as const satisfies Record<string, Pose>
 
-export const walking = (t: number): Pose => ({ fx: 1, step: Math.floor(t / LEG_STEP_MS) % 2 === 1 })
+// Each step plants all four feet for half of `legMs`, then lifts one pair for the other half.
+const stride = (t: number, legMs: number): Pose['lift'] => ([undefined, 'odd', undefined, 'even'] as const)[Math.floor((2 * t) / legMs) % 4]
+
+// A waddle: the arm on the side of the lifted legs swings up, the other down.
+export const walking = (t: number): Pose => {
+  const lift = stride(t, LEG_STEP_MS)
+  if (lift === 'odd') return { fx: 1, lift, armL: 8, armR: 10 }
+  if (lift === 'even') return { fx: 1, lift, armL: 10, armR: 8 }
+  return { fx: 1 }
+}
 
 // Out of usage: half-pace steps, arms hanging.
-export const trudging = (t: number): Pose => ({ fx: 1, fy: 1, armL: 10, armR: 10, step: Math.floor(t / (2 * LEG_STEP_MS)) % 2 === 1 })
+export const trudging = (t: number): Pose => ({ fx: 1, fy: 1, armL: 10, armR: 10, lift: stride(t, 2 * LEG_STEP_MS) })
 
 export const cheering = (t: number): Pose => (Math.floor(t / 480) % 2 === 1 ? POSES.bounce : POSES.cheer)
 

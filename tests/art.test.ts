@@ -14,8 +14,9 @@ describe('battle art', () => {
     }
   })
 
-  test('out of usage his legs step half as often', () => {
-    expect([0, 320, 640, 960].map(t => trudging(t).step)).toEqual([false, false, true, true])
+  test('out of usage his legs lift half as often, and his arms just hang', () => {
+    expect([0, 320, 640, 960].map(t => trudging(t).lift)).toEqual([undefined, 'odd', undefined, 'even'])
+    expect([0, 320, 640, 960].map(t => [trudging(t).armL, trudging(t).armR])).toEqual([[10, 10], [10, 10], [10, 10], [10, 10]])
   })
 
   test('foes never wear his orange, and stand on the ground', () => {

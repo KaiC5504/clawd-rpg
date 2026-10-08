@@ -33,23 +33,17 @@ describe('the big Clawd', () => {
   })
 
   test('his body is only ever his orange, in every pose and step', () => {
-    const poses: Pose[] = [...Object.values(POSES), walking(0), walking(320), idling(0), idling(100), idling(7000)]
+    const poses: Pose[] = [...Object.values(POSES), walking(0), walking(160), walking(320), walking(480), idling(0), idling(100), idling(7000)]
     for (const pose of poses) for (const c of drawn(pose).values()) expect([ORANGE, EYE]).toContain(c)
   })
 
-  test('his legs change stance every 320 ms while walking', () => {
-    expect(walking(0).step).toBe(false)
-    expect(walking(320).step).toBe(true)
-    expect(walking(640).step).toBe(false)
-  })
-
-  test('walking, his back leg steps onto the one beside it while his front leg steps back, body level', () => {
-    expect(feet(drawn(walking(0)))).toEqual({ y: 8, xs: [3, 5, 9, 11] })
-    expect(feet(drawn(walking(320)))).toEqual({ y: 8, xs: [4, 5, 8, 11] })
+  test('walking, he waddles: his first and third legs lift with his left arm up, then his second and fourth with his right', () => {
+    expect([0, 160, 320, 480, 640].map(t => feet(drawn(walking(t))).xs)).toEqual([[3, 5, 9, 11], [5, 11], [3, 5, 9, 11], [3, 9], [3, 5, 9, 11]])
+    expect([0, 160, 320, 480].map(t => [walking(t).armL ?? 9, walking(t).armR ?? 9])).toEqual([[9, 9], [8, 10], [9, 9], [10, 8]])
   })
 
   test('he stays inside a 15 × 9 box when standing or walking', () => {
-    for (const pose of [POSES.stand, walking(0), walking(320)]) {
+    for (const pose of [POSES.stand, walking(0), walking(160), walking(320), walking(480)]) {
       for (const key of drawn(pose).keys()) {
         const [x, y] = key.split(',').map(Number)
         expect(x! >= 0 && x! < 15 && y! >= 0 && y! < 9).toBe(true)
