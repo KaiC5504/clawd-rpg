@@ -1,6 +1,7 @@
 export type ZoneId = 'forest' | 'dungeon' | 'neon'
 export type AwardKind = 'battle' | 'elite' | 'raid' | 'turn'
-export type Award = { kind: AwardKind; foe?: string }
+// `boss`: the raid was the zone's boss, which clears the zone.
+export type Award = { kind: AwardKind; foe?: string; boss?: true }
 
 // `exp` is what he has towards the next level, not a lifetime total.
 export type Progress = {
@@ -17,7 +18,7 @@ export type Progress = {
 export const EXP: Record<AwardKind, number> = { battle: 10, elite: 25, raid: 60, turn: 5 }
 export const UNLOCK_LEVEL: Record<ZoneId, number> = { forest: 1, dungeon: 3, neon: 6 }
 const ZONES = Object.keys(UNLOCK_LEVEL) as ZoneId[]
-// Battles won in a zone before its boss turn (plan 4 brings the boss).
+// Battles won in a zone before its boss turn.
 export const ZONE_BATTLES = 12
 
 export const toNext = (level: number) => 50 + 25 * level
@@ -65,10 +66,16 @@ export function gain(p: Progress, award: Award): { progress: Progress; levelsUp:
   }
   const won = award.kind === 'battle' || award.kind === 'elite'
   const bestiary = award.foe ? { ...p.bestiary, [award.foe]: (p.bestiary[award.foe] ?? 0) + 1 } : p.bestiary
-  return {
-    progress: { ...p, exp, level, unlocked: unlockedAt(level), zoneMeter: won ? Math.min(ZONE_BATTLES, p.zoneMeter + 1) : p.zoneMeter, bestiary },
-    levelsUp: level - p.level,
-  }
+  const next: Progress = { ...p, exp, level, unlocked: unlockedAt(level), zoneMeter: won ? Math.min(ZONE_BATTLES, p.zoneMeter + 1) : p.zoneMeter, bestiary }
+  return { progress: award.boss ? { ...next, zone: nextZone(next), zoneMeter: 0 } : next, levelsUp: level - p.level }
+}
+
+export const bossDue = (p: Progress) => p.zoneMeter >= ZONE_BATTLES
+
+// The unlocked zone after his, in road order, back to the forest after the last.
+export function nextZone(p: Progress): ZoneId {
+  const open = unlockedAt(p.level)
+  return open[(open.indexOf(p.zone) + 1) % open.length] ?? 'forest'
 }
 
 export const expFraction = (p: Progress) => p.exp / toNext(p.level)

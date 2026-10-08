@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { EXP, FRESH, ZONE_BATTLES, expFraction, gain, loadProgress, toNext } from '../hooks/rpg/progress'
+import { EXP, FRESH, ZONE_BATTLES, bossDue, expFraction, gain, loadProgress, nextZone, toNext } from '../hooks/rpg/progress'
 import type { Progress } from '../hooks/rpg/progress'
 
 describe('progress', () => {
@@ -69,5 +69,40 @@ describe('loading saved progress', () => {
 
   test('a save from a newer build is marked newer, never backed up over', () => {
     expect(loadProgress({ v: 2, exp: 9000 })).toEqual({ progress: FRESH, isNewer: true })
+  })
+})
+
+describe('bosses and zones', () => {
+  const full = (level: number, zone: Progress['zone'] = 'forest'): Progress => gain({ ...FRESH, level, zone, zoneMeter: ZONE_BATTLES }, { kind: 'turn' }).progress
+
+  test("a boss is due once the zone's meter is full", () => {
+    expect(bossDue(full(1))).toBe(true)
+    expect(bossDue({ ...FRESH, zoneMeter: ZONE_BATTLES - 1 })).toBe(false)
+  })
+
+  test('beating the boss pays a raid, empties the meter and moves on to the next unlocked zone', () => {
+    const { progress } = gain(full(3), { kind: 'raid', foe: 'treant', boss: true })
+    expect([progress.zone, progress.zoneMeter, progress.bestiary.treant]).toEqual(['dungeon', 0, 1])
+  })
+
+  test('with only the forest unlocked he stays there, the meter emptied', () => {
+    const { progress } = gain({ ...full(1), exp: 0 }, { kind: 'raid', foe: 'treant', boss: true })
+    expect([progress.level, progress.zone, progress.zoneMeter]).toEqual([1, 'forest', 0])
+  })
+
+  test("the boss's own EXP can unlock the zone he goes to", () => {
+    const { progress } = gain({ ...full(2), exp: toNext(2) - 10 }, { kind: 'raid', foe: 'treant', boss: true })
+    expect([progress.level, progress.zone]).toEqual([3, 'dungeon'])
+  })
+
+  test('zones cycle: after Neon City comes the forest again', () => {
+    expect(nextZone({ ...full(6), zone: 'neon' })).toBe('forest')
+    expect(nextZone({ ...full(6), zone: 'dungeon' })).toBe('neon')
+    expect(nextZone({ ...full(4), zone: 'dungeon' })).toBe('forest')
+  })
+
+  test("a party's raid pays the same but clears nothing", () => {
+    const { progress } = gain(full(3), { kind: 'raid' })
+    expect([progress.zone, progress.zoneMeter]).toEqual(['forest', ZONE_BATTLES])
   })
 })
