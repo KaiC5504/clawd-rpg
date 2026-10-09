@@ -17,6 +17,8 @@ function fakeSession(
   usage: Usage | 'fails' = { context: { window: 200000, tokens: 24000, percent: 12 }, rateLimits: [] },
   repo = { cwd: 'C:/src/my-app', branch: 'main' },
   saved: Record<string, unknown> = {},
+  // While true, the band is off the screen (a dialog over it): its blits are refused.
+  screen = { isAway: false },
 ) {
   mock.env(on, { USERPROFILE: '/Users/tester' })
   // The plugin's store, kept here so tests can read what was saved.
@@ -36,6 +38,7 @@ function fakeSession(
   on('classic.SessionStart', () => ({}))
   on('classic.UserPromptSubmit', () => ({}))
   on('ui.blit', ($, e) => {
+    if (screen.isAway) return { value: { deny: 'no Raster of its own is mounted under key "rpg" in above-prompt' } }
     if ('cells' in e) blits.push(e.cells)
     return { value: {} }
   })
@@ -172,6 +175,24 @@ test('while Claude works he walks: frames are sent every 80 ms, only when they c
   expect(blits.length).toBeGreaterThan(6)
   expect(blits.length).toBeLessThanOrEqual(20)
   expect(new Set(blits).size).toBe(blits.length)
+  await t.unmount()
+})
+
+test('a dialog that takes the band off the screen for a moment: when it closes he walks on, no redraw needed', async ($, on) => {
+  const blits: string[] = []
+  const screen = { isAway: false }
+  const clock = mock.clock(on, { now: NOW })
+  fakeSession(on, blits, undefined, undefined, {}, screen)
+  await $.classic.SessionStart({ source: 'startup' })
+  await clock.settle()
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(150, true) })
+  await clock.advance(800)
+  screen.isAway = true
+  await clock.advance(1600)
+  screen.isAway = false
+  const before = blits.length
+  await clock.advance(1600)
+  expect(blits.length - before).toBeGreaterThan(6)
   await t.unmount()
 })
 

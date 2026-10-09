@@ -194,8 +194,9 @@ async function paintFrame($: EngineInterface): Promise<void> {
     p.painted = cells
     const blitted = await $.ui.blit({ requestId: p.requestId, key: RASTER_KEY, cells })
     lastBlitAt = now
-    // Not mounted any more (hidden, collapsed, resized): rest until the next draw.
-    if (blitted.deny !== undefined && painting === p) stopPainting()
+    // Off the screen for now (a dialog or the command menu over it): keep trying. When the band
+    // comes back Claude Code doesn't always draw it again, so waiting for a draw would freeze it.
+    if (blitted.deny !== undefined) p.painted = ''
   } finally {
     isBlitting = false
   }
