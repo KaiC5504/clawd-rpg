@@ -6,9 +6,9 @@ import type { Work, WorkResult } from '../../types'
 
 type Input = Record<string, unknown>
 
-const str = (value: unknown) => (typeof value === 'string' ? value : '')
+export const str = (value: unknown) => (typeof value === 'string' ? value : '')
 const lines = (text: string) => (text === '' ? 0 : text.replace(/\n$/, '').split('\n').length)
-const base = (path: string) => path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path
+export const base = (path: string) => path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path
 
 function extOf(path: string): string {
   const name = base(path)

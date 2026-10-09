@@ -220,12 +220,21 @@ export const DEMO: readonly DemoScene[] = [
 
 export const DEMO_MS = DEMO.reduce((n, d) => n + d.ms, 0)
 
+// Stories are immutable, so each scene's is built once per width rather than every frame.
+const made = new Map<string, (into: number) => Scene>()
+function sceneAt(i: number, width: number): (into: number) => Scene {
+  const key = `${i}:${width}`
+  let at = made.get(key)
+  if (!at) made.set(key, (at = DEMO[i]!.make(T0 + i * 10_000_000, width)))
+  return at
+}
+
 // The demo `ms` in (looping), at a width: the scene's name and what to draw.
 export function demoScene(ms: number, width: number): { name: string; scene: Scene } {
   let into = ((ms % DEMO_MS) + DEMO_MS) % DEMO_MS
   for (const [i, d] of DEMO.entries()) {
-    if (into < d.ms) return { name: d.name, scene: d.make(T0 + i * 10_000_000, width)(into) }
+    if (into < d.ms) return { name: d.name, scene: sceneAt(i, width)(into) }
     into -= d.ms
   }
-  return { name: DEMO[0]!.name, scene: DEMO[0]!.make(T0, width)(0) }
+  return { name: DEMO[0]!.name, scene: sceneAt(0, width)(0) }
 }

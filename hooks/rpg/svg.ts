@@ -30,7 +30,10 @@ function strokes(g: Grid): string {
       const c = px[y * g.w + x]!
       let end = x + 1
       while (end < g.w && px[y * g.w + end] === c) end++
-      if (c !== EMPTY) runs.set(c, [...(runs.get(c) ?? []), `M${x} ${y + 0.5}h${end - x}`])
+      if (c !== EMPTY) {
+        if (!runs.has(c)) runs.set(c, [])
+        runs.get(c)!.push(`M${x} ${y + 0.5}h${end - x}`)
+      }
       x = end
     }
   }

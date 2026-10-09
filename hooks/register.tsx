@@ -17,6 +17,7 @@ import { FRAME_MS, GATE_AFTER, GATE_AHEAD, gateAt, gateClear, goalOf, moveRoad, 
 import type { Motion } from './rpg/road'
 import { statsFrom } from './rpg/stats'
 import type { Usage } from './rpg/stats'
+import type { RpgStats } from '../types'
 
 const RASTER_KEY = 'rpg'
 // The width the band was last drawn at, for placing a gate before the band is up.
@@ -161,24 +162,29 @@ async function observeNow($: EngineInterface, event: string, payload: HookPayloa
   }
 }
 
+// Read once per frame, so the road and the picture are of the same moment.
+type Live = { story: Story; stats: RpgStats }
+const liveNow = async ($: EngineInterface): Promise<Live> => {
+  const [st, s] = await Promise.all([storyNow($), read($, stats)])
+  return { story: st, stats: s }
+}
+
 // He walks while Claude works and nothing stands in his way, and between turns heads for a rest spot.
 // `advance`: this is a frame of the timer, so the road moves; a redraw only looks.
 // The motion's `distance` is where to draw him.
-async function motionNow($: EngineInterface, width: number, now: number, advance: boolean): Promise<Motion> {
+function motionNow(live: Live, width: number, now: number, advance: boolean): Motion {
   const frames = advance ? ++road.frames : road.frames
-  const story = await storyNow($)
-  const distance = road.width ? reanchor(story, now, road.distance, road.width, width) : road.distance
-  const motion = moveRoad(story, now, distance, width, frames, road.isWorking, (await read($, stats)).mp <= 0)
+  const distance = road.width ? reanchor(live.story, now, road.distance, road.width, width) : road.distance
+  const motion = moveRoad(live.story, now, distance, width, frames, road.isWorking, live.stats.mp <= 0)
   if (!advance) return { ...motion, distance }
   road.distance = motion.distance
   road.width = width
   return motion
 }
 
-async function cellsNow($: EngineInterface, width: number, now: number, motion: Motion): Promise<string> {
+function cellsNow(live: Live, width: number, now: number, motion: Motion): string {
   if (demoStartedAt !== null) return encodeCells(frame(demoScene(demoFrames * FRAME_MS, width).scene))
-  const s = await read($, stats)
-  return encodeCells(frame({ width, t: now, distance: motion.distance, isWalking: motion.isWalking, stats: s, story: await storyNow($), trudge: s.mp <= 0, legMs: motion.legMs }))
+  return encodeCells(frame({ width, t: now, distance: motion.distance, isWalking: motion.isWalking, ...live, trudge: live.stats.mp <= 0, legMs: motion.legMs }))
 }
 
 async function paintFrame($: EngineInterface): Promise<void> {
@@ -188,8 +194,9 @@ async function paintFrame($: EngineInterface): Promise<void> {
   try {
     const now = await $.clock.now()
     if (demoStartedAt !== null) demoFrames++
+    const live = await liveNow($)
     // The demo plays over the session: the road waits where he is.
-    const cells = await cellsNow($, p.width, now, await motionNow($, p.width, now, demoStartedAt === null))
+    const cells = cellsNow(live, p.width, now, motionNow(live, p.width, now, demoStartedAt === null))
     if (cells === p.painted) return
     p.painted = cells
     const blitted = await $.ui.blit({ requestId: p.requestId, key: RASTER_KEY, cells })
@@ -214,8 +221,7 @@ async function desktopScenes($: EngineInterface, now: number): Promise<(i: numbe
     const from = now - demoStartedAt
     return i => demoScene(from + i * DESKTOP_FRAME_MS, DESKTOP_COLS).scene
   }
-  const s = await read($, stats)
-  const st = await storyNow($)
+  const { story: st, stats: s } = await liveNow($)
   return i => {
     const t = now + i * DESKTOP_FRAME_MS
     const goal = road.isWorking ? null : goalOf(st, t, DESKTOP_COLS)
@@ -256,7 +262,8 @@ async function walkUnseen($: EngineInterface): Promise<void> {
   if (painting || !isOnDesktop) return
   const now = await $.clock.now()
   const frames = Math.floor(STATS_MS / FRAME_MS) + (unseenSeconds++ % 2)
-  for (let i = 0; i < frames; i++) await motionNow($, DESKTOP_COLS, now, true)
+  const live = await liveNow($)
+  for (let i = 0; i < frames; i++) motionNow(live, DESKTOP_COLS, now, true)
 }
 
 async function drawBand($: EngineInterface, e: BandEvent, next: (e: BandEvent) => unknown) {
@@ -269,7 +276,8 @@ async function drawBand($: EngineInterface, e: BandEvent, next: (e: BandEvent) =
   }
   road.isWorking = e.props.isWorking
   const now = await $.clock.now()
-  const cells = await cellsNow($, width, now, await motionNow($, width, now, false))
+  const live = await liveNow($)
+  const cells = cellsNow(live, width, now, motionNow(live, width, now, false))
   if (!painting || painting.requestId !== e.requestId || painting.width !== width) {
     stopPainting()
     painting = { requestId: e.requestId, width, painted: cells }
@@ -372,7 +380,8 @@ async function onCall($: EngineInterface, e: Call, next: (e: Call) => Promise<Ca
   await quietly(observe($, 'PreToolUse', { tool_name: tool, tool_input: input, tool_use_id: toolUseId, ...by }))
   const ran = await next(e)
   if ((tool === 'Bash' || tool === 'PowerShell') && ran.deny === undefined) {
-    const payload = ran.isError ? { tool_use_id: toolUseId ?? '', error: ran.text ?? '' } : { tool_use_id: toolUseId ?? '', tool_response: ran.result }
+    const id = { tool_use_id: toolUseId ?? '' }
+    const payload = ran.isError ? { ...id, error: ran.text ?? '' } : { ...id, tool_response: ran.result }
     await quietly(observe($, ran.isError ? 'PostToolUseFailure' : 'PostToolUse', payload))
   }
   return ran

@@ -9,17 +9,22 @@ const SPACE = 0x20
 // Raster words: [codePoint, fg, bg] per cell, row by row.
 export function toWords(g: Grid): Uint32Array {
   const words = new Uint32Array(g.w * ROWS * 3)
+  let i = 0
+  const cell = (cp: number, fg: number, bg: number) => {
+    words[i++] = cp
+    words[i++] = fg
+    words[i++] = bg
+  }
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < g.w; col++) {
       const top = g.px[2 * row * g.w + col]!
       const bottom = g.px[(2 * row + 1) * g.w + col]!
-      const i = (row * g.w + col) * 3
       const text = g.text.get(row * g.w + col)
-      if (text) words.set([text.cp, text.fg, top !== EMPTY ? top : bottom !== EMPTY ? bottom : DEFAULT_COLOR], i)
-      else if (top === EMPTY && bottom === EMPTY) words.set([SPACE, DEFAULT_COLOR, DEFAULT_COLOR], i)
-      else if (bottom === EMPTY) words.set([UPPER, top, DEFAULT_COLOR], i)
-      else if (top === EMPTY) words.set([LOWER, bottom, DEFAULT_COLOR], i)
-      else words.set([UPPER, top, bottom], i)
+      if (text) cell(text.cp, text.fg, top !== EMPTY ? top : bottom !== EMPTY ? bottom : DEFAULT_COLOR)
+      else if (top === EMPTY && bottom === EMPTY) cell(SPACE, DEFAULT_COLOR, DEFAULT_COLOR)
+      else if (bottom === EMPTY) cell(UPPER, top, DEFAULT_COLOR)
+      else if (top === EMPTY) cell(LOWER, bottom, DEFAULT_COLOR)
+      else cell(UPPER, top, bottom)
     }
   }
   return words

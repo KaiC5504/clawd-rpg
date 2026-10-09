@@ -1,5 +1,5 @@
 import type { Foe, FoeKind, Member, PartyClass, QuestTask, Story, Trip, Work, WorkKind, ZoneId } from '../../types'
-import { classifyCall, settleCall } from '../plumbing/work'
+import { base, classifyCall, settleCall, str } from '../plumbing/work'
 import { noise } from './noise'
 import { EXP } from './progress'
 import type { Award } from './progress'
@@ -79,8 +79,6 @@ export const NO_STORY: Story = {
   party: [],
 }
 
-const str = (value: unknown) => (typeof value === 'string' ? value : '')
-const base = (path: string) => path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path
 const zoneOf = (value: unknown): ZoneId => (ZONES.includes(value as ZoneId) ? (value as ZoneId) : 'forest')
 
 function spawn(s: Story, now: number): Foe {
@@ -127,7 +125,8 @@ function hit(s: Story, skill: NonNullable<Story['skill']>, now: number, awards: 
 function attack(s: Story, work: Work, path: string, now: number, awards: Award[], by: Member | null): Story {
   const name = SKILLS[work.kind]
   if (!name) return s
-  const files = path && (work.kind === 'edit' || work.kind === 'write') ? { ...s.turn.files, [base(path)]: (s.turn.files[base(path)] ?? 0) + 1 } : s.turn.files
+  const file = base(path)
+  const files = path && (work.kind === 'edit' || work.kind === 'write') ? { ...s.turn.files, [file]: (s.turn.files[file] ?? 0) + 1 } : s.turn.files
   const skill = by ? { name: CLASS_SKILLS[by.cls], at: now, party: true as const, by: by.id } : { name, at: now }
   return hit({ ...s, turn: { ...s.turn, files } }, skill, now, awards)
 }
