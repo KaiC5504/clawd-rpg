@@ -18,9 +18,13 @@ export const PACK_MS = 1200
 // Three tool calls inside this window and he hurries.
 export const HURRY_WINDOW_MS = 8000
 
+// 12.5 frames a second: a hurried walk moves one pixel a frame, and his quickest steps (four
+// poses in 320 ms) show every pose; at 160 ms they alias and his legs freeze or flap.
+export const FRAME_MS = 80
+
 // Paces in road pixels per four frames: whole pixels only, since a fraction scrolls unevenly.
-const WALK = 4
-const HURRY = 8
+const WALK = 2
+const HURRY = 4
 
 // Each zone's own rest spot, where he goes after a minute idle.
 export const NOOK: Record<ZoneId, RestKind> = { forest: 'camp', dungeon: 'crystal', neon: 'ramen' }

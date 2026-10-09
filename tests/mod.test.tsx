@@ -69,17 +69,21 @@ function groundCell(cells: string, w: number, col: number): string {
   return Array.from(words.slice((4 * w + col) * 3, (4 * w + col) * 3 + 3)).join(' ')
 }
 
-test('the forest scrolls exactly one pixel a frame, so the walk never hitches', async ($, on) => {
+test('the forest scrolls exactly one pixel every other frame, so the walk never hitches', async ($, on) => {
   const blits: string[] = []
   const clock = mock.clock(on, { now: NOW })
   fakeSession(on, blits)
   await $.classic.SessionStart({ source: 'startup' })
   await clock.settle()
   const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(150, true) })
-  for (let i = 0; i < 24; i++) await clock.advance(160)
-  expect(blits.length).toBeGreaterThan(20)
-  for (let i = 1; i < blits.length; i++) {
-    for (let x = 0; x < 40; x++) expect(groundCell(blits[i]!, 150, x)).toBe(groundCell(blits[i - 1]!, 150, x + 1))
+  const seen: string[] = []
+  for (let i = 0; i < 24; i++) {
+    await clock.advance(160)
+    seen.push(blits.at(-1)!)
+  }
+  expect(blits.length).toBeGreaterThan(40)
+  for (let i = 1; i < seen.length; i++) {
+    for (let x = 0; x < 40; x++) expect(groundCell(seen[i]!, 150, x)).toBe(groundCell(seen[i - 1]!, 150, x + 1))
   }
   await t.unmount()
 })
@@ -157,7 +161,7 @@ test('below 40 columns the band steps aside', async ($, on) => {
   await t.unmount()
 })
 
-test('while Claude works he walks: frames are sent every 160 ms, only when they change', async ($, on) => {
+test('while Claude works he walks: frames are sent every 80 ms, only when they change', async ($, on) => {
   const blits: string[] = []
   const clock = mock.clock(on, { now: NOW })
   fakeSession(on, blits)
@@ -165,8 +169,8 @@ test('while Claude works he walks: frames are sent every 160 ms, only when they 
   await clock.settle()
   const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(150, true) })
   await clock.advance(1600)
-  expect(blits.length).toBeGreaterThan(3)
-  expect(blits.length).toBeLessThanOrEqual(10)
+  expect(blits.length).toBeGreaterThan(6)
+  expect(blits.length).toBeLessThanOrEqual(20)
   expect(new Set(blits).size).toBe(blits.length)
   await t.unmount()
 })

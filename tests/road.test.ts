@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { NO_STORY } from '../hooks/rpg/director'
 import type { Story, Trip } from '../hooks/rpg/director'
-import { DOZE_MS, PACK_MS, SLEEP_MS, camOf, gateAt, goalOf, moveRoad, placeAt, placeWidth, reanchor, restOf, spotsOf, stopsOf, gateClear, zoneAt } from '../hooks/rpg/road'
+import { DOZE_MS, FRAME_MS, PACK_MS, SLEEP_MS, camOf, gateAt, goalOf, moveRoad, placeAt, placeWidth, reanchor, restOf, spotsOf, stopsOf, gateClear, zoneAt } from '../hooks/rpg/road'
 
 const T0 = 1_000_000
 const W = 179
@@ -10,11 +10,23 @@ const trip = (over: Partial<Trip> = {}): Trip => ({ origin: 1000, at: T0, compac
 const resting = (over: Partial<Trip> = {}): Story => ({ ...NO_STORY, trip: trip(over) })
 const working = (recent: number[] = []): Story => ({ ...NO_STORY, turn: { ...NO_STORY.turn, active: true, recent }, trip: trip({ leftAt: T0 }) })
 
-// Runs the road for `frames` frames from `distance`, 160 ms apart, and returns where it got to.
-function run(story: Story, frames: number, distance: number, isWorking: boolean, trudge = false, width = W, at = T0) {
+// Runs the road for `ms` of frames from `distance`, and returns where it got to.
+function run(story: Story, ms: number, distance: number, isWorking: boolean, trudge = false, width = W, at = T0) {
   let d = distance
-  for (let f = 0; f < frames; f++) d = moveRoad(story, at + f * 160, d, width, f, isWorking, trudge).distance
+  for (let f = 0; f < ms / FRAME_MS; f++) d = moveRoad(story, at + f * FRAME_MS, d, width, f, isWorking, trudge).distance
   return d
+}
+
+// How far the road moves on each of `frames` frames.
+function steps(story: Story, frames: number, isWorking: boolean, trudge = false) {
+  const out: number[] = []
+  let d = 1000
+  for (let f = 0; f < frames; f++) {
+    const next = moveRoad(story, T0 + f * FRAME_MS, d, W, f, isWorking, trudge).distance
+    out.push(next - d)
+    d = next
+  }
+  return out
 }
 
 describe('where he rests', () => {
@@ -58,9 +70,9 @@ describe('where he rests', () => {
 })
 
 describe('getting there', () => {
-  test('idle, he hurries two pixels a frame to the pier and stops exactly on it', () => {
-    expect(run(resting(), 10, 1000, false)).toBe(1020)
-    expect(run(resting(), 200, 1000, false)).toBe(1000 + W)
+  test('idle, he hurries 12.5 pixels a second to the pier and stops exactly on it', () => {
+    expect(run(resting(), 1600, 1000, false)).toBe(1020)
+    expect(run(resting(), 32_000, 1000, false)).toBe(1000 + W)
     expect(restOf(resting(), T0, 1000 + W, W)).toEqual({ kind: 'pier', phase: 'rest', since: T0 })
     expect(moveRoad(resting(), T0, 1000 + W, W, 0, false, false).isWalking).toBe(false)
   })
@@ -68,7 +80,7 @@ describe('getting there', () => {
   test('after a minute he gets up and walks on to the campfire', () => {
     const later = T0 + DOZE_MS
     expect(goalOf(resting(), later, W)).toEqual({ kind: 'camp', from: 1000 + 2 * W })
-    expect(run(resting(), 300, 1000 + W, false, false, W, later)).toBe(1000 + 2 * W)
+    expect(run(resting(), 48_000, 1000 + W, false, false, W, later)).toBe(1000 + 2 * W)
   })
 
   test('a narrower band moves the spot under him, and he stays on it', () => {
@@ -79,29 +91,36 @@ describe('getting there', () => {
     const called: Story = { ...working(), trip: trip({ leftAt: T0 + 500 }) }
     expect(restOf(called, T0 + 600, 1000 + W, W)).toEqual({ kind: 'pier', phase: 'pack', since: T0 + 500 })
     expect(moveRoad(called, T0 + 600, 1000 + W, W, 0, true, false).distance).toBe(1000 + W)
-    expect(moveRoad(called, T0 + 500 + PACK_MS, 1000 + W, W, 0, true, false).distance).toBe(1001 + W)
+    expect(moveRoad(called, T0 + 500 + PACK_MS, 1000 + W, W, 1, true, false).distance).toBe(1001 + W)
   })
 
   test('a prompt before he gets there: nothing to pack, he goes straight back to work', () => {
     const called: Story = { ...working(), trip: trip({ leftAt: T0 + 500 }) }
     expect(restOf(called, T0 + 600, 1050, W)).toBeNull()
-    expect(moveRoad(called, T0 + 600, 1050, W, 0, true, false).distance).toBe(1051)
+    expect(moveRoad(called, T0 + 600, 1050, W, 1, true, false).distance).toBe(1051)
   })
 })
 
 describe('pace', () => {
-  test('working, he walks one pixel a frame', () => {
-    expect(run(working(), 12, 0, true)).toBe(12)
+  test('the band draws a frame every 80 ms', () => {
+    expect(FRAME_MS).toBe(80)
   })
 
-  test('three tool calls in eight seconds and he hurries, two pixels a frame', () => {
-    expect(run(working([T0 - 3000, T0 - 2000, T0 - 1000]), 12, 0, true)).toBe(24)
-    expect(run(working([T0 - 30000, T0 - 2000, T0 - 1000]), 12, 0, true)).toBe(12)
+  test('working, he walks 6.25 pixels a second, a pixel every other frame', () => {
+    expect(run(working(), 1920, 0, true)).toBe(12)
+    expect(steps(working(), 8, true)).toEqual([0, 1, 0, 1, 0, 1, 0, 1])
+  })
+
+  test('hurrying, a pixel every frame: never two at once, which reads as a hitch', () => {
+    expect(run(working([T0 - 3000, T0 - 2000, T0 - 1000]), 1920, 0, true)).toBe(24)
+    expect(run(working([T0 - 30000, T0 - 2000, T0 - 1000]), 1920, 0, true)).toBe(12)
+    expect(steps(resting(), 8, false)).toEqual([1, 1, 1, 1, 1, 1, 1, 1])
   })
 
   test('out of usage every pace is halved', () => {
-    expect(run(working(), 12, 0, true, true)).toBe(6)
-    expect(run(resting(), 12, 1000, false, true)).toBe(1012)
+    expect(run(working(), 1920, 0, true, true)).toBe(6)
+    expect(run(resting(), 1920, 1000, false, true)).toBe(1012)
+    expect(steps(working(), 8, true, true)).toEqual([0, 0, 0, 1, 0, 0, 0, 1])
   })
 
   test('his legs keep time with the pace', () => {
@@ -112,12 +131,12 @@ describe('pace', () => {
 
   test('a fight, or Claude calling, stops him where he is', () => {
     const fighting: Story = { ...working(), foe: { kind: 'goblin', hp: 2, maxHp: 2, elite: false, at: T0, hitAt: 0 } }
-    expect(run(fighting, 12, 0, true)).toBe(0)
-    expect(run({ ...resting(), calledAt: T0 }, 12, 1000, false)).toBe(1000)
+    expect(run(fighting, 1920, 0, true)).toBe(0)
+    expect(run({ ...resting(), calledAt: T0 }, 1920, 1000, false)).toBe(1000)
   })
 
   test('idle with nowhere to go, he stays put', () => {
-    expect(run(NO_STORY, 12, 40, false)).toBe(40)
+    expect(run(NO_STORY, 1920, 40, false)).toBe(40)
   })
 })
 

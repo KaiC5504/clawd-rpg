@@ -13,7 +13,7 @@ import { FRESH, bossDue, gain, loadProgress } from './rpg/progress'
 import type { Award, Progress } from './rpg/progress'
 import { doctorText, statsText } from './rpg/report'
 import type { DoctorFacts } from './rpg/report'
-import { GATE_AFTER, GATE_AHEAD, gateAt, gateClear, goalOf, moveRoad, reanchor, zoneAt } from './rpg/road'
+import { FRAME_MS, GATE_AFTER, GATE_AHEAD, gateAt, gateClear, goalOf, moveRoad, reanchor, zoneAt } from './rpg/road'
 import type { Motion } from './rpg/road'
 import { statsFrom } from './rpg/stats'
 import type { Usage } from './rpg/stats'
@@ -21,9 +21,6 @@ import type { Usage } from './rpg/stats'
 const RASTER_KEY = 'rpg'
 // The width the band was last drawn at, for placing a gate before the band is up.
 const USUAL_WIDTH = 179
-// Half the sketch page's speed, the pace KaiC picked as natural. The road moves one whole pixel a
-// frame (6.25 px/s): a speed in fractions of a pixel scrolls 1, 1, 1, then 2, which reads as a hitch.
-const FRAME_MS = 160
 const STATS_MS = 1000
 // The desktop's band scales to the window; this is about how wide a column draws there.
 const DESKTOP_COL_PX = 8
@@ -252,10 +249,13 @@ async function refreshDesktop($: EngineInterface): Promise<void> {
 
 // With no terminal band painting, nothing else moves the road: a second's worth of frames at a time,
 // so the desktop's scenes (and where a trip or a gate starts) keep up with the session.
+// A second is 12.5 frames: 12 and 13 by turns.
+let unseenSeconds = 0
 async function walkUnseen($: EngineInterface): Promise<void> {
   if (painting || !isOnDesktop) return
   const now = await $.clock.now()
-  for (let i = 0; i < Math.round(STATS_MS / FRAME_MS); i++) await motionNow($, DESKTOP_COLS, now, true)
+  const frames = Math.floor(STATS_MS / FRAME_MS) + (unseenSeconds++ % 2)
+  for (let i = 0; i < frames; i++) await motionNow($, DESKTOP_COLS, now, true)
 }
 
 async function drawBand($: EngineInterface, e: BandEvent, next: (e: BandEvent) => unknown) {

@@ -11,7 +11,8 @@ import { NEON } from '../hooks/rpg/places/neon'
 import { PIER } from '../hooks/rpg/places/pier'
 import { RAMEN } from '../hooks/rpg/places/ramen'
 import type { Place } from '../hooks/rpg/places/place'
-import { EYE, ORANGE, asleep, clawd, sitting, walking } from '../hooks/rpg/sprites/clawd'
+import { FRAME_MS } from '../hooks/rpg/road'
+import { EYE, LEG_STEP_MS, ORANGE, asleep, clawd, sitting, walking } from '../hooks/rpg/sprites/clawd'
 
 const RESTS: [string, Place][] = [['pier', PIER], ['camp', CAMP], ['crystal', CRYSTAL], ['ramen', RAMEN], ['inn', INN]]
 const ZONES: [string, Place][] = [['forest', FOREST], ['dungeon', DUNGEON], ['neon', NEON]]
@@ -66,6 +67,14 @@ describe('resting poses', () => {
       clawd(g, 4, 1, pose)
       for (const c of g.px) if (c !== EMPTY) expect([ORANGE, EYE]).toContain(c)
     }
+  })
+
+  test("at the band's frame rate every pace shows each step, whenever the walk starts", () => {
+    for (const legMs of [LEG_STEP_MS / 2, LEG_STEP_MS, LEG_STEP_MS * 2])
+      for (let start = 0; start < legMs * 2; start += 7) {
+        const lifts = new Set(Array.from({ length: 16 }, (_, f) => walking(start + f * FRAME_MS, legMs).lift))
+        expect([legMs, start, [...lifts].length]).toEqual([legMs, start, 3])
+      }
   })
 
   test('hurrying, his legs lift twice as often', () => {
