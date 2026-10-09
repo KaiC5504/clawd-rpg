@@ -725,3 +725,54 @@ test('with only the desktop showing the band, he still walks the road', async ($
   expect((store.get('progress') as { roadPos: number }).roadPos).toBeGreaterThan(20)
   await d.unmount()
 })
+
+// How far the ground moved between two frames: 0 to 3 pixels, or null when something stands on it.
+function groundShift(before: string, after: string, w: number): number | null {
+  for (let s = 0; s <= 3; s++) {
+    let isMatch = true
+    for (let x = 70; x < 110 && isMatch; x++) isMatch = groundCell(after, w, x) === groundCell(before, w, x + s)
+    if (isMatch) return s
+  }
+  return null
+}
+
+test("/rpg demo walks at the frame's pace even when the host answers each frame a little late", { timeoutMs: 60_000 }, async ($, on) => {
+  const blits: string[] = []
+  // A host clock whose waits come back a few milliseconds late, never the same few twice, as a
+  // real one does: mock.clock answers every wait on the dot.
+  let now = NOW
+  let answered = 0
+  const waits: { due: number; resolve: () => void }[] = []
+  on('clock.now', () => ({ value: now }))
+  for (const kind of ['clock.every', 'clock.after', 'clock.sleep'] as const)
+    on(kind, ($, e) => new Promise(resolve => waits.push({ due: now + e.ms, resolve: () => resolve({ value: undefined }) })))
+  const settle = async () => {
+    for (let i = 0; i < 6; i++) await new Promise(r => setTimeout(r, 0))
+  }
+  const advance = async (ms: number) => {
+    const until = now + ms
+    for (;;) {
+      waits.sort((a, b) => a.due - b.due)
+      const next = waits[0]
+      if (!next || next.due > until) break
+      waits.shift()
+      now = Math.max(now, next.due + ((answered++ * 7919) % 37))
+      next.resolve()
+      await settle()
+    }
+    now = Math.max(now, until)
+    await settle()
+  }
+  fakeSession(on, blits)
+  await $.classic.SessionStart({ source: 'startup' })
+  await settle()
+  const t = await $.ui.mount({ plugin: 'clawd-rpg', surface: 'terminal', ...band(WIDE) })
+  await $.command.run(typed('demo'))
+  for (let ms = 0; ms < 45_000; ms += 160) await advance(160)
+  const shifts = blits.slice(1).map((b, i) => groundShift(blits[i]!, b, WIDE))
+  // A walk is one pace from its first step to its last: never 1, 1, 2 or 2, 2, 3.
+  const runs = shifts.map(s => (s ? String(s) : '.')).join('').split('.').filter(Boolean)
+  expect(runs.join('').length).toBeGreaterThan(40)
+  for (const run of runs) expect(new Set(run).size).toBe(1)
+  await t.unmount()
+})

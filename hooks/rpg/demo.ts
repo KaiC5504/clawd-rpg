@@ -3,6 +3,7 @@ import { NO_STORY, VICTORY_MS, passGate, step, withLevelUp } from './director'
 import type { HookPayload, Story } from './director'
 import type { Scene } from './frame'
 import { DOZE_MS, GATE_AFTER, goalOf } from './road'
+import { LEG_STEP_MS } from './sprites/clawd'
 
 type Event = [string, HookPayload]
 
@@ -172,7 +173,7 @@ export const DEMO: readonly DemoScene[] = [
     make: (from, width) => {
       const { story, at } = wonBoss(from)
       const crossed = passGate(story, 'dungeon', WALK_AT + GATE_AFTER)
-      return (into: number): Scene => ({ width, t: at + VICTORY_MS + into, distance: WALK_AT + Math.floor(into / 80), isWalking: true, stats: LEVELLED, story: crossed })
+      return (into: number): Scene => ({ width, t: at + VICTORY_MS + into, distance: WALK_AT + Math.floor(into / 80), isWalking: true, stats: LEVELLED, story: crossed, legMs: LEG_STEP_MS / 2 })
     },
   },
   {

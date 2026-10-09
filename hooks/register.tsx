@@ -42,8 +42,11 @@ let painting: { requestId: string; width: number; painted: string } | null = nul
 let frameTimer: { cancel: () => void } | null = null
 // A frame still on its way to the terminal: the next tick skips rather than piling blits up.
 let isBlitting = false
-// When /rpg demo started, while it plays.
+// When /rpg demo started, while it plays, and the band's frames since. The band plays the demo by
+// frames, as the live road walks: the host answers each frame a little late, and a scene timed by
+// the clock would step 1, 1, 2 and hitch.
 let demoStartedAt: number | null = null
+let demoFrames = 0
 // For /rpg doctor: the terminal band's last width and when its last frame went out.
 let lastWidth: number | null = null
 let lastBlitAt: number | null = null
@@ -176,7 +179,7 @@ async function motionNow($: EngineInterface, width: number, now: number, advance
 }
 
 async function cellsNow($: EngineInterface, width: number, now: number, motion: Motion): Promise<string> {
-  if (demoStartedAt !== null) return encodeCells(frame(demoScene(now - demoStartedAt, width).scene))
+  if (demoStartedAt !== null) return encodeCells(frame(demoScene(demoFrames * FRAME_MS, width).scene))
   const s = await read($, stats)
   return encodeCells(frame({ width, t: now, distance: motion.distance, isWalking: motion.isWalking, stats: s, story: await storyNow($), trudge: s.mp <= 0, legMs: motion.legMs }))
 }
@@ -187,6 +190,7 @@ async function paintFrame($: EngineInterface): Promise<void> {
   isBlitting = true
   try {
     const now = await $.clock.now()
+    if (demoStartedAt !== null) demoFrames++
     // The demo plays over the session: the road waits where he is.
     const cells = await cellsNow($, p.width, now, await motionNow($, p.width, now, demoStartedAt === null))
     if (cells === p.painted) return
@@ -311,6 +315,7 @@ async function demo($: EngineInterface): Promise<string> {
   }
   if (await read($, isHidden)) return "Clawd's adventure is hidden: /rpg brings it back, then /rpg demo."
   demoStartedAt = await $.clock.now()
+  demoFrames = 0
   $.ui.invalidate('ui.render')
   const narrow = lastWidth !== null && lastWidth < HIDDEN_BELOW ? ` Widen the terminal past ${HIDDEN_BELOW} columns to see it.` : ''
   return `Playing a day on the road above the prompt: ${DEMO.length} scenes, about ${Math.round(DEMO_MS / 1000)} s, on a loop. /rpg demo again stops it.${narrow}`

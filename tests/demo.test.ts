@@ -6,7 +6,7 @@ import { DEMO, DEMO_MS, demoScene } from '../hooks/rpg/demo'
 import { clawdAt, frame } from '../hooks/rpg/frame'
 import { EMPTY, PX_H, at, grid } from '../hooks/rpg/grid'
 import { restOf, zoneAt } from '../hooks/rpg/road'
-import { EYE, ORANGE, clawd } from '../hooks/rpg/sprites/clawd'
+import { EYE, LEG_STEP_MS, ORANGE, clawd } from '../hooks/rpg/sprites/clawd'
 
 // Every scene, sampled through its length.
 function samples(width: number, per = 6) {
@@ -76,6 +76,16 @@ describe('the demo', () => {
           expect(words[key * 3 + 2]).toBe(top !== EMPTY ? top : bottom !== EMPTY ? bottom : DEFAULT_COLOR)
         }
       }
+    }
+  })
+
+  test('his legs keep up with the road: twice the steps where it moves two pixels a frame', () => {
+    let from = 0
+    for (const d of DEMO) {
+      const a = demoScene(from + 1600, 179).scene
+      const b = demoScene(from + 1760, 179).scene
+      if (a.isWalking) expect([d.name, (a.legMs ?? LEG_STEP_MS) * (b.distance - a.distance)]).toEqual([d.name, LEG_STEP_MS])
+      from += d.ms
     }
   })
 
